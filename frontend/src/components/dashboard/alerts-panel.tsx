@@ -1,8 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { alerts } from '@/lib/mock-data';
+import { getAlerts } from '@/lib/api';
 import { getRelativeTime, cn } from '@/lib/utils';
 import {
   ArrowRight,
@@ -13,7 +14,9 @@ import {
   FlaskConical,
   TrendingUp,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react';
+import type { Alert } from '@/types';
 
 const typeIcons: Record<string, typeof Bug> = {
   pest: Bug,
@@ -39,16 +42,66 @@ const severityBadge: Record<string, string> = {
 };
 
 export function AlertsPanel() {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getAlerts();
+        setAlerts(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar alertas');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  const unreadCount = alerts.filter(a => !a.isRead).length;
   const recentAlerts = alerts.slice(0, 4);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Alertas Recientes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Alertas Recientes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-12 text-gray-500">
+            {error}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <CardTitle>Alertas Recientes</CardTitle>
-          {alerts.filter(a => !a.isRead).length > 0 && (
+          {unreadCount > 0 && (
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-medium text-white">
-              {alerts.filter(a => !a.isRead).length}
+              {unreadCount}
             </span>
           )}
         </div>

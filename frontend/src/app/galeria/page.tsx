@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { photos } from '@/lib/mock-data';
+import { getPhotos } from '@/lib/api';
 import { formatDateTime, getHealthColor, cn } from '@/lib/utils';
+import type { Photo } from '@/types';
 import {
   Camera,
   Leaf,
@@ -16,11 +17,30 @@ import {
   ChevronLeft,
   ChevronRight,
   Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
 
 export default function GaleriaPage() {
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getPhotos();
+        setPhotos(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar fotos');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
 
   const activePhoto = selectedPhoto ? photos.find(p => p.id === selectedPhoto) : null;
   const lightboxPhotoData = lightboxPhoto ? photos.find(p => p.id === lightboxPhoto) : null;
@@ -36,6 +56,20 @@ export default function GaleriaPage() {
     }
     setLightboxPhoto(photos[newIndex].id);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-24 text-gray-500">{error}</div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

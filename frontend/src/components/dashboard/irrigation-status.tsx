@@ -1,9 +1,11 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { irrigationHistory } from '@/lib/mock-data';
+import { getIrrigationEvents } from '@/lib/api';
 import { formatTime, cn } from '@/lib/utils';
-import { Droplets, Clock, Zap, Hand } from 'lucide-react';
+import { Droplets, Clock, Zap, Hand, Loader2 } from 'lucide-react';
+import type { IrrigationEvent } from '@/types';
 
 const triggerIcons = {
   scheduled: Clock,
@@ -18,9 +20,63 @@ const triggerLabels = {
 };
 
 export function IrrigationStatus() {
-  const todayEvents = irrigationHistory.filter(e =>
-    e.timestamp.startsWith('2025-01-14')
-  );
+  const [events, setEvents] = useState<IrrigationEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getIrrigationEvents(7);
+        setEvents(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar datos de riego');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Droplets className="h-5 w-5 text-blue-500" />
+            Estado del Riego
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Droplets className="h-5 w-5 text-blue-500" />
+            Estado del Riego
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-12 text-gray-500">
+            {error}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const todayEvents = events.filter(e => e.timestamp.startsWith(today));
   const totalWaterToday = todayEvents.reduce((acc, e) => acc + e.waterVolume, 0);
 
   return (
@@ -47,7 +103,7 @@ export function IrrigationStatus() {
         {/* Recent events */}
         <h4 className="text-sm font-medium text-gray-700 mb-3">Últimos riegos</h4>
         <div className="space-y-3">
-          {irrigationHistory.slice(0, 4).map((event) => {
+          {events.slice(0, 4).map((event) => {
             const TriggerIcon = triggerIcons[event.trigger];
             return (
               <div

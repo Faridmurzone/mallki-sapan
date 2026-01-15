@@ -1,11 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { crops } from '@/lib/mock-data';
+import { getCrops } from '@/lib/api';
 import { getStageLabel, getHealthColor, cn } from '@/lib/utils';
-import { ArrowRight, Leaf } from 'lucide-react';
+import { ArrowRight, Leaf, Loader2 } from 'lucide-react';
+import type { Crop } from '@/types';
 
 const stageColors: Record<string, string> = {
   germination: 'bg-purple-100 text-purple-700',
@@ -17,6 +18,55 @@ const stageColors: Record<string, string> = {
 };
 
 export function CropsOverview() {
+  const [crops, setCrops] = useState<Crop[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getCrops();
+        setCrops(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar cultivos');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Cultivos Activos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Cultivos Activos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-12 text-gray-500">
+            {error}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -36,12 +86,10 @@ export function CropsOverview() {
               key={crop.id}
               className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors"
             >
-              {/* Icon placeholder for crop image */}
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-green-100 to-green-200">
                 <Leaf className="h-6 w-6 text-green-600" />
               </div>
 
-              {/* Crop info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h4 className="font-medium text-gray-900 truncate">{crop.name}</h4>
@@ -55,7 +103,6 @@ export function CropsOverview() {
                 <p className="text-sm text-gray-500">{crop.location}</p>
               </div>
 
-              {/* Health score */}
               <div className="text-right">
                 <div className="flex items-center gap-2">
                   <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">

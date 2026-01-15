@@ -1,8 +1,10 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { irrigationHistory, sensors } from '@/lib/mock-data';
-import { formatDateTime, formatTime, cn } from '@/lib/utils';
+import { getIrrigationEvents, getIrrigationZones, getIrrigationStats, type IrrigationZone } from '@/lib/api';
+import { formatDateTime, cn } from '@/lib/utils';
+import type { IrrigationEvent } from '@/types';
 import {
   Droplets,
   Clock,
@@ -10,9 +12,9 @@ import {
   Hand,
   Calendar,
   TrendingDown,
-  Gauge,
   Power,
   Settings,
+  Loader2,
 } from 'lucide-react';
 
 const triggerIcons = {
@@ -33,15 +35,56 @@ const triggerColors = {
   manual: 'bg-gray-100 text-gray-700',
 };
 
-const zones = [
-  { id: 'zona-a', name: 'Zona A', humidity: 65, status: 'normal', lastIrrigation: '06:00' },
-  { id: 'zona-b', name: 'Zona B', humidity: 42, status: 'low', lastIrrigation: '07:30' },
-];
-
 export default function RiegoPage() {
-  const todayEvents = irrigationHistory.filter(e => e.timestamp.startsWith('2025-01-14'));
-  const totalWaterToday = todayEvents.reduce((acc, e) => acc + e.waterVolume, 0);
-  const totalWaterWeek = irrigationHistory.reduce((acc, e) => acc + e.waterVolume, 0);
+  const [events, setEvents] = useState<IrrigationEvent[]>([]);
+  const [zones, setZones] = useState<IrrigationZone[]>([]);
+  const [stats, setStats] = useState<{
+    todayUsage: number;
+    weekUsage: number;
+    avgDailyUsage: number;
+    eventsByTrigger: Record<string, number>;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [eventsData, zonesData, statsData] = await Promise.all([
+          getIrrigationEvents(7),
+          getIrrigationZones(),
+          getIrrigationStats(),
+        ]);
+        setEvents(eventsData);
+        setZones(zonesData);
+        setStats(statsData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar datos de riego');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-24 text-gray-500">{error}</div>
+    );
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const todayEvents = events.filter(e => e.timestamp.startsWith(today));
+  const aiEventsToday = todayEvents.filter(e => e.trigger === 'ai_decision').length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -72,7 +115,7 @@ export default function RiegoPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Agua hoy</p>
-              <p className="text-2xl font-bold text-gray-900">{totalWaterToday}L</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.todayUsage || 0}L</p>
             </div>
           </div>
         </Card>
@@ -83,7 +126,7 @@ export default function RiegoPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Agua esta semana</p>
-              <p className="text-2xl font-bold text-gray-900">{totalWaterWeek}L</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.weekUsage || 0}L</p>
             </div>
           </div>
         </Card>
@@ -93,8 +136,8 @@ export default function RiegoPage() {
               <TrendingDown className="h-6 w-6 text-yellow-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">vs semana anterior</p>
-              <p className="text-2xl font-bold text-green-600">-12%</p>
+              <p className="text-sm text-gray-500">Promedio diario</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.avgDailyUsage || 0}L</p>
             </div>
           </div>
         </Card>
@@ -105,9 +148,7 @@ export default function RiegoPage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Riegos IA hoy</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {todayEvents.filter(e => e.trigger === 'ai_decision').length}
-              </p>
+              <p className="text-2xl font-bold text-gray-900">{aiEventsToday}</p>
             </div>
           </div>
         </Card>
@@ -121,81 +162,87 @@ export default function RiegoPage() {
               <CardTitle>Zonas de Riego</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {zones.map((zone) => (
-                <div
-                  key={zone.id}
-                  className={cn(
-                    'p-4 rounded-xl border-2 transition-all',
-                    zone.status === 'low'
-                      ? 'border-yellow-300 bg-yellow-50'
-                      : 'border-gray-100 bg-white'
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        'rounded-lg p-2',
-                        zone.status === 'low' ? 'bg-yellow-200' : 'bg-blue-100'
-                      )}>
-                        <Droplets className={cn(
-                          'h-5 w-5',
-                          zone.status === 'low' ? 'text-yellow-700' : 'text-blue-600'
-                        )} />
+              {zones.map((zone) => {
+                const humidity = 65; // Mock value - would come from sensors
+                const status = humidity < 50 ? 'low' : 'normal';
+                return (
+                  <div
+                    key={zone.id}
+                    className={cn(
+                      'p-4 rounded-xl border-2 transition-all',
+                      status === 'low'
+                        ? 'border-yellow-300 bg-yellow-50'
+                        : 'border-gray-100 bg-white'
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          'rounded-lg p-2',
+                          status === 'low' ? 'bg-yellow-200' : 'bg-blue-100'
+                        )}>
+                          <Droplets className={cn(
+                            'h-5 w-5',
+                            status === 'low' ? 'text-yellow-700' : 'text-blue-600'
+                          )} />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{zone.name}</h3>
+                          <p className="text-sm text-gray-500">
+                            {zone.isActive ? 'Activa' : 'Inactiva'}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{zone.name}</h3>
-                        <p className="text-sm text-gray-500">Último riego: {zone.lastIrrigation}</p>
+                      <button className={cn(
+                        'flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors',
+                        status === 'low'
+                          ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                          : 'bg-blue-500 text-white hover:bg-blue-600'
+                      )}>
+                        <Power className="h-4 w-4" />
+                        {status === 'low' ? 'Regar ahora' : 'Activar'}
+                      </button>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">Humedad del suelo</span>
+                        <span className={cn(
+                          'text-sm font-bold',
+                          humidity >= 60 ? 'text-green-600' :
+                          humidity >= 40 ? 'text-yellow-600' : 'text-red-600'
+                        )}>
+                          {humidity}%
+                        </span>
+                      </div>
+                      <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-all',
+                            humidity >= 60 ? 'bg-green-500' :
+                            humidity >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                          )}
+                          style={{ width: `${humidity}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span className="text-xs text-gray-400">Seco</span>
+                        <span className="text-xs text-gray-400">Óptimo</span>
+                        <span className="text-xs text-gray-400">Húmedo</span>
                       </div>
                     </div>
-                    <button className={cn(
-                      'flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors',
-                      zone.status === 'low'
-                        ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                        : 'bg-blue-500 text-white hover:bg-blue-600'
-                    )}>
-                      <Power className="h-4 w-4" />
-                      {zone.status === 'low' ? 'Regar ahora' : 'Activar'}
-                    </button>
-                  </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Humedad del suelo</span>
-                      <span className={cn(
-                        'text-sm font-bold',
-                        zone.humidity >= 60 ? 'text-green-600' :
-                        zone.humidity >= 40 ? 'text-yellow-600' : 'text-red-600'
-                      )}>
-                        {zone.humidity}%
-                      </span>
-                    </div>
-                    <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className={cn(
-                          'h-full rounded-full transition-all',
-                          zone.humidity >= 60 ? 'bg-green-500' :
-                          zone.humidity >= 40 ? 'bg-yellow-500' : 'bg-red-500'
-                        )}
-                        style={{ width: `${zone.humidity}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-xs text-gray-400">Seco</span>
-                      <span className="text-xs text-gray-400">Óptimo</span>
-                      <span className="text-xs text-gray-400">Húmedo</span>
-                    </div>
+                    {status === 'low' && (
+                      <div className="mt-3 p-2 rounded-lg bg-yellow-100 flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-yellow-600" />
+                        <span className="text-sm text-yellow-700">
+                          IA recomienda riego en las próximas 2 horas
+                        </span>
+                      </div>
+                    )}
                   </div>
-
-                  {zone.status === 'low' && (
-                    <div className="mt-3 p-2 rounded-lg bg-yellow-100 flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-yellow-600" />
-                      <span className="text-sm text-yellow-700">
-                        IA recomienda riego en las próximas 2 horas
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
 
@@ -206,7 +253,7 @@ export default function RiegoPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-gray-100">
-                {irrigationHistory.map((event) => {
+                {events.map((event) => {
                   const TriggerIcon = triggerIcons[event.trigger];
                   return (
                     <div key={event.id} className="px-6 py-4 flex items-center gap-4">

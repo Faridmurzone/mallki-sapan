@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   LineChart,
@@ -11,18 +12,77 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { generateSensorHistory } from '@/lib/mock-data';
+import { getSensorHistory } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
 
-const sensorHistory = generateSensorHistory(24);
-
-const chartData = sensorHistory.soilHumidity.map((reading, index) => ({
-  time: new Date(reading.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-  humedadSuelo: Math.round(reading.value),
-  temperatura: Math.round(sensorHistory.temperature[index].value * 10) / 10,
-  humedadAire: Math.round(sensorHistory.airHumidity[index].value),
-}));
+interface ChartDataPoint {
+  time: string;
+  humedadSuelo: number;
+  temperatura: number;
+  humedadAire: number;
+}
 
 export function SensorChart() {
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const history = await getSensorHistory(24);
+
+        const data = (history.soilHumidity || []).map((reading, index) => ({
+          time: new Date(reading.timestamp).toLocaleTimeString('es-AR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          humedadSuelo: Math.round(reading.value),
+          temperatura: Math.round((history.temperature?.[index]?.value || 0) * 10) / 10,
+          humedadAire: Math.round(history.airHumidity?.[index]?.value || 0),
+        }));
+
+        setChartData(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar datos');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Sensores - Últimas 24 horas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80 flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Sensores - Últimas 24 horas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80 flex items-center justify-center text-gray-500">
+            {error}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>

@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { crops } from '@/lib/mock-data';
+import { getCrops } from '@/lib/api';
 import { formatDate, getStageLabel, getHealthColor, cn } from '@/lib/utils';
+import type { Crop } from '@/types';
 import {
   Leaf,
   Calendar,
@@ -13,6 +13,7 @@ import {
   Droplets,
   Sun,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
 
 const stageColors: Record<string, string> = {
@@ -34,8 +35,41 @@ const stageProgress: Record<string, number> = {
 };
 
 export default function CultivosPage() {
+  const [crops, setCrops] = useState<Crop[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedCrop, setSelectedCrop] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getCrops();
+        setCrops(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar cultivos');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
   const activeCrop = selectedCrop ? crops.find(c => c.id === selectedCrop) : null;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-24 text-gray-500">{error}</div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

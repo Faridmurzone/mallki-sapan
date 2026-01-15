@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { alerts } from '@/lib/mock-data';
+import { getAlerts, markAlertAsRead, markAllAlertsAsRead } from '@/lib/api';
 import { getRelativeTime, formatDateTime, cn } from '@/lib/utils';
+import type { Alert } from '@/types';
 import {
   Bell,
   Bug,
@@ -16,6 +17,7 @@ import {
   CheckCircle,
   Filter,
   Sparkles,
+  Loader2,
 } from 'lucide-react';
 
 const typeIcons: Record<string, typeof Bug> = {
@@ -69,8 +71,44 @@ const severityLabels: Record<string, string> = {
 type FilterType = 'all' | 'unread' | 'critical' | 'high' | 'medium' | 'low';
 
 export default function AlertasPage() {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getAlerts();
+        setAlerts(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar alertas');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllAlertsAsRead();
+      setAlerts(alerts.map(a => ({ ...a, isRead: true })));
+    } catch (err) {
+      console.error('Error marking alerts as read:', err);
+    }
+  };
+
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await markAlertAsRead(id);
+      setAlerts(alerts.map(a => a.id === id ? { ...a, isRead: true } : a));
+    } catch (err) {
+      console.error('Error marking alert as read:', err);
+    }
+  };
 
   const filteredAlerts = alerts.filter(alert => {
     if (filter === 'all') return true;
@@ -80,6 +118,20 @@ export default function AlertasPage() {
 
   const activeAlert = selectedAlert ? alerts.find(a => a.id === selectedAlert) : null;
   const unreadCount = alerts.filter(a => !a.isRead).length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-24 text-gray-500">{error}</div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -91,7 +143,10 @@ export default function AlertasPage() {
             {unreadCount > 0 ? `${unreadCount} alertas sin leer` : 'Todas las alertas leídas'}
           </p>
         </div>
-        <button className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-gray-700 font-medium hover:bg-gray-50 transition-colors">
+        <button
+          onClick={handleMarkAllAsRead}
+          className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+        >
           <CheckCircle className="h-4 w-4" />
           Marcar todas como leídas
         </button>
@@ -300,7 +355,10 @@ export default function AlertasPage() {
                 )}
 
                 <div className="flex gap-2 pt-2">
-                  <button className="flex-1 rounded-lg bg-green-500 px-4 py-2 text-white text-sm font-medium hover:bg-green-600 transition-colors">
+                  <button
+                    onClick={() => handleMarkAsRead(activeAlert.id)}
+                    className="flex-1 rounded-lg bg-green-500 px-4 py-2 text-white text-sm font-medium hover:bg-green-600 transition-colors"
+                  >
                     Marcar resuelta
                   </button>
                   <button className="rounded-lg border border-gray-200 px-4 py-2 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors">
