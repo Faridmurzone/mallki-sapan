@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// SENSORES
+// ============================================
+
+enum SensorType {
+  humidity_soil
+  humidity_air
+  temperature
+  light
+  ph
+}
+
+enum SensorStatus {
+  normal
+  warning
+  critical
+  offline
+}
+
+model Sensor {
+  id         String       @id @default(cuid())
+  name       String
+  type       SensorType
+  unit       String
+  status     SensorStatus @default(normal)
+  lastValue  Float?
+  lastUpdate DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  readings SensorReading[]
+  crops    CropSensor[]
+
+  @@map("sensors")
+}
+
+model SensorReading {
+  id        String   @id @default(cuid())
+  sensorId  String
+  value     Float
+  timestamp DateTime @default(now())
+
+  sensor Sensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+
+  @@index([sensorId, timestamp])
+  @@map("sensor_readings")
+}
+
+// ============================================
+// CULTIVOS
+// ============================================
+
+enum GrowthStage {
+  germination
+  seedling
+  vegetative
+  flowering
+  fruiting
+  harvest
+}
+
+model Crop {
+  id                  String      @id @default(cuid())
+  name                String
+  variety             String
+  plantedDate         DateTime
+  expectedHarvestDate DateTime
+  currentStage        GrowthStage @default(germination)
+  healthScore         Int         @default(100)
+  location            String
+  imageUrl            String?
+  notes               String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  sensors CropSensor[]
+  alerts  Alert[]
+  photos  Photo[]
+
+  @@map("crops")
+}
+
+model CropSensor {
+  id       String @id @default(cuid())
+  cropId   String
+  sensorId String
+
+  crop   Crop   @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  sensor Sensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+
+  @@unique([cropId, sensorId])
+  @@map("crop_sensors")
+}
+
+// ============================================
+// ALERTAS
+// ============================================
+
+enum AlertType {
+  pest
+  disease
+  irrigation
+  nutrition
+  environmental
+  growth
+}
+
+enum AlertSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+model Alert {
+  id               String        @id @default(cuid())
+  type             AlertType
+  severity         AlertSeverity
+  title            String
+  message          String
+  isRead           Boolean       @default(false)
+  aiRecommendation String?
+  cropId           String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  crop Crop? @relation(fields: [cropId], references: [id], onDelete: SetNull)
+
+  @@index([isRead, severity])
+  @@map("alerts")
+}
+
+// ============================================
+// FOTOS Y ANALISIS IA
+// ============================================
+
+model Photo {
+  id           String   @id @default(cuid())
+  url          String
+  thumbnailUrl String?
+  cropId       String
+  capturedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  crop     Crop          @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  analysis PhotoAnalysis?
+
+  @@map("photos")
+}
+
+model PhotoAnalysis {
+  id              String   @id @default(cuid())
+  photoId         String   @unique
+  healthScore     Int
+  growthStage     String
+  issues          String[] @default([])
+  recommendations String[] @default([])
+  analyzedAt      DateTime @default(now())
+
+  photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@map("photo_analyses")
+}
+
+// ============================================
+// RIEGO
+// ============================================
+
+enum IrrigationTrigger {
+  scheduled
+  ai_decision
+  manual
+}
+
+model IrrigationZone {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  events IrrigationEventZone[]
+
+  @@map("irrigation_zones")
+}
+
+model IrrigationEvent {
+  id          String             @id @default(cuid())
+  trigger     IrrigationTrigger
+  duration    Int // minutos
+  waterVolume Float // litros
+  startedAt   DateTime           @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime           @default(now())
+
+  zones IrrigationEventZone[]
+
+  @@index([startedAt])
+  @@map("irrigation_events")
+}
+
+model IrrigationEventZone {
+  id        String @id @default(cuid())
+  eventId   String
+  zoneId    String
+
+  event IrrigationEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  zone  IrrigationZone  @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, zoneId])
+  @@map("irrigation_event_zones")
+}
+
+// ============================================
+// USUARIOS (para autenticación futura)
+// ============================================
+
+enum UserRole {
+  admin
+  user
+  viewer
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(user)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
