@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { CalibrationPanel } from '@/components/settings/calibration-panel';
 import {
   Settings,
   Wifi,
@@ -85,6 +86,9 @@ export default function ConfiguracionPage() {
               </CardContent>
             </Card>
           ))}
+
+          {/* Calibración de sensores (pH / EC) */}
+          <CalibrationPanel />
 
           {/* Notifications settings */}
           <Card>

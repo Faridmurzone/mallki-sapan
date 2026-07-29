@@ -57,6 +57,19 @@ model SensorReading {
   @@map("sensor_readings")
 }
 
+// Calibracion global por parametro (ej. "ph", "ec"). Los valores se
+// editan desde la web y se copian al config.h del firmware.
+model Calibration {
+  id        String   @id @default(cuid())
+  key       String   @unique // "ph" | "ec"
+  params    Json                // { voltageAt7, voltageAt4 } o { kValue }
+  note      String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("calibrations")
+}
+
 // ============================================
 // CULTIVOS
 // ============================================
