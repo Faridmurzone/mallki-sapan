@@ -76,8 +76,17 @@ mallki-sapan/
 - [x] Definición de arquitectura
 - [ ] Frontend con dashboard (en progreso)
 - [ ] Motor de IA
-- [ ] Firmware Arduino
+- [x] Firmware Arduino de monitoreo (pH, temp agua, nivel) — ver [`arduino/`](arduino/)
+- [x] Documentación de hardware/circuitos — ver [`docs/`](docs/)
+- [ ] Riego automático (actuadores)
 - [ ] Integración de componentes
+
+## Documentación
+
+- [Circuitos y cableado](docs/hardware/circuitos.md) — pH, temperatura del agua y nivel del tanque para hidroponía en tubos PVC.
+- [Arquitectura y escalado](docs/arquitectura/arquitectura.md)
+- [Especificación funcional](docs/funcional/especificacion-funcional.md)
+- [Firmware (ESP32 / Arduino Uno)](arduino/)
 
 ## Autor
 

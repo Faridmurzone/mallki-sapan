@@ -1,0 +1,3 @@
+
+# Firmware secrets (WiFi / tokens) — no subir
+arduino/**/config.h
