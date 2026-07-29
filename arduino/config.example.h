@@ -23,6 +23,7 @@
 #define SENSOR_ID_PH        "PEGAR_ID_DEL_SENSOR_PH"
 #define SENSOR_ID_TEMP      "PEGAR_ID_DEL_SENSOR_TEMP"
 #define SENSOR_ID_LEVEL     "PEGAR_ID_DEL_SENSOR_NIVEL"
+#define SENSOR_ID_EC        "PEGAR_ID_DEL_SENSOR_EC"
 
 // ---------- Tiempos ----------
 #define SAMPLE_INTERVAL_MS  10000UL   // cada cuánto se muestrea
@@ -48,12 +49,29 @@
 #define SENSOR_OFFSET_CM    5.0f    // dist. sensor->agua con tanque lleno
 #define LEVEL_MAX_CM        400.0f  // descarta ecos > este valor
 
+// ---------- EC / nutrientes (sonda TDS analógica, ej. DFRobot Gravity) ----------
+// Salida analógica 0..~2.3V -> no requiere divisor en ESP32.
+#define EC_K_VALUE          1.0f    // constante de celda de la sonda (calibrar)
+// Formula DFRobot TDS con compensacion de temperatura (ver firmware).
+
+// ---------- Riego automático ----------
+#define IRRIGATION_ENABLED     1        // 1 = riego automático activo
+#define PUMP_ON_MS             300000UL // bomba encendida (5 min)
+#define PUMP_OFF_MS            900000UL // bomba apagada (15 min) -> ciclo NFT
+#define MIN_TANK_LEVEL_PCT     15.0f    // no bombear por debajo de esto (RN-01)
+#define PH_SAFE_MIN            4.5f     // fuera de este rango, cortar por seguridad
+#define PH_SAFE_MAX            8.5f
+#define RELAY_ACTIVE_HIGH      1        // 1: IN=HIGH enciende; 0: modulo active-low
+// ID de la zona de riego creada en el backend (POST /api/irrigation/zones).
+#define IRRIGATION_ZONE_ID     "PEGAR_ID_DE_LA_ZONA"
+
 // ---------- Pines ESP32 (Opción A) ----------
-#define PIN_PH_ADC     34   // ADC1, input-only
+#define PIN_PH_ADC     34   // ADC1, input-only (con divisor)
+#define PIN_EC_ADC     35   // ADC1, input-only (sin divisor)
 #define PIN_DS18B20     4
 #define PIN_TRIG        5
 #define PIN_ECHO       18
-#define PIN_RELAY      13   // opcional (bomba/valvula)
+#define PIN_RELAY      13   // relé bomba/valvula
 
 // ---------- Pines Arduino Uno (Opción B) ----------
 #define UNO_PIN_PH_ADC   A0

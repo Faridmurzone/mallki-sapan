@@ -14,9 +14,11 @@ datasource db {
 enum SensorType {
   humidity_soil
   humidity_air
-  temperature
+  temperature       // usar tambien para temperatura del agua (hidroponia)
   light
   ph
+  water_level       // nivel del tanque en % (0-100)
+  ec                // conductividad electrica / nutrientes en mS/cm
 }
 
 enum SensorStatus {

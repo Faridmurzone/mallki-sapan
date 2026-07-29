@@ -74,9 +74,11 @@ void loop() {
     float ph   = jsonNumber(line, "ph");
     float temp = jsonNumber(line, "water_temp");
     float lvl  = jsonNumber(line, "level");
+    float ec   = jsonNumber(line, "ec");
 
     if (ph > 0 && ph < 14)       postReading(SENSOR_ID_PH, ph);
     if (temp > -50 && temp < 80) postReading(SENSOR_ID_TEMP, temp);
     if (lvl >= 0)                postReading(SENSOR_ID_LEVEL, lvl);
+    if (ec >= 0 && ec < 10)      postReading(SENSOR_ID_EC, ec);
   }
 }

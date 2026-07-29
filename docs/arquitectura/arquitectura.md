@@ -52,7 +52,8 @@ El firmware usa el API que **ya existe**:
 | Alta de sensor | `POST` | `/api/sensors` | `{ name, type, unit }` |
 | Enviar lectura | `POST` | `/api/sensors/:id/readings` | `{ value, timestamp? }` |
 | Leer históricos | `GET` | `/api/sensors/:id/readings?hours=24` | — |
-| Registrar riego | `POST` | `/api/irrigation` | ver ruta |
+| Riego automático (con chequeo de nivel) | `POST` | `/api/irrigation/auto` | `{ zoneIds, duration, trigger }` |
+| ¿Se puede regar? | `GET` | `/api/irrigation/can-irrigate` | → `{ allowed, level, reason }` |
 
 Cada sensor físico = una fila en `sensors`. El `id` (cuid) se carga en el
 `config.h` del firmware. Ejemplo de alta:

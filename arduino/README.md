@@ -31,13 +31,30 @@ Elegí **A** o **B** (no las dos). Detalle de cableado en
      -d '{"name":"pH Tubo 1","type":"ph","unit":"pH"}'
    curl -X POST http://TU_BACKEND:3001/api/sensors -H 'Content-Type: application/json' \
      -d '{"name":"Temp agua Tubo 1","type":"temperature","unit":"°C"}'
-   # nivel: requiere agregar el type water_level (ver docs/hardware/circuitos.md §8)
    curl -X POST http://TU_BACKEND:3001/api/sensors -H 'Content-Type: application/json' \
      -d '{"name":"Nivel tanque","type":"water_level","unit":"%"}'
+   curl -X POST http://TU_BACKEND:3001/api/sensors -H 'Content-Type: application/json' \
+     -d '{"name":"EC Tubo 1","type":"ec","unit":"mS/cm"}'
+   # zona de riego (para el control de bomba):
+   curl -X POST http://TU_BACKEND:3001/api/irrigation/zones -H 'Content-Type: application/json' \
+     -d '{"name":"Tubo 1"}'
    ```
+   > Los tipos `water_level` y `ec` requieren correr la migración del backend
+   > (`pnpm db:push` tras actualizar `schema.prisma`). Ver
+   > [docs/hardware/circuitos.md §8](../docs/hardware/circuitos.md#8-extensión-del-modelo-de-datos-para-escalar).
 5. Abrí el `.ino`, elegí la placa correcta, compilá y subí.
 6. Abrí el Monitor Serie (115200) y calibrá el pH (ver §3.2 de circuitos):
    anotá el voltaje en buffer 7.0 y 4.0 → cargalos en `config.h` → recompilá.
+
+## Riego automático (nodo ESP32)
+
+El sketch `mallki_node_esp32` controla la bomba por ciclos ON/OFF (config
+`PUMP_ON_MS` / `PUMP_OFF_MS`) con **corte de seguridad**: no bombea si el nivel
+del tanque cae por debajo de `MIN_TANK_LEVEL_PCT` (15% por defecto) ni si el pH
+sale del rango seguro. Cada ciclo cumplido se registra en el backend vía
+`POST /api/irrigation/auto`, que **vuelve a validar el nivel del lado del servidor**
+(defensa en profundidad). También podés consultar `GET /api/irrigation/can-irrigate`.
+Poné `IRRIGATION_ENABLED 0` en `config.h` si sólo querés monitorear.
 
 ## Notas importantes
 

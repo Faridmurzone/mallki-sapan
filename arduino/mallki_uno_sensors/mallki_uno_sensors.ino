@@ -45,6 +45,15 @@ float readWaterTemp() {
   ds18b20.requestTemperatures();
   return ds18b20.getTempCByIndex(0);
 }
+float readEcVoltageOnce() {
+  return (analogRead(A1) / 1023.0f) * 5.0f;   // sonda EC/TDS en A1 (5V)
+}
+float voltageToEc(float v, float tempC) {
+  float comp = 1.0f + 0.02f * (tempC - 25.0f);
+  float vc = v / comp;
+  float tds = (133.42f * vc * vc * vc - 255.86f * vc * vc + 857.39f * vc) * 0.5f;
+  return (tds / 500.0f) * EC_K_VALUE;          // mS/cm
+}
 float readDistanceOnce() {
   digitalWrite(UNO_PIN_TRIG, LOW);  delayMicroseconds(3);
   digitalWrite(UNO_PIN_TRIG, HIGH); delayMicroseconds(10);
@@ -73,12 +82,15 @@ void loop() {
   float ph   = voltageToPh(readMedian(readPhVoltageOnce, 7));
   float temp = readWaterTemp();
   float lvl  = distanceToLevelPct(readMedian(readDistanceOnce, 5));
+  float ec   = voltageToEc(readMedian(readEcVoltageOnce, 7),
+                           (temp > -50 && temp < 80) ? temp : 25.0f);
 
   // Línea JSON hacia el ESP32.
   String json = "{";
   json += "\"ph\":" + String(ph, 2) + ",";
   json += "\"water_temp\":" + String(temp, 1) + ",";
-  json += "\"level\":" + String(lvl, 1) + "}";
+  json += "\"level\":" + String(lvl, 1) + ",";
+  json += "\"ec\":" + String(ec, 2) + "}";
 
   link.println(json);
   Serial.println(json);   // también al monitor para depurar

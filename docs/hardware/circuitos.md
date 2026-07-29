@@ -8,6 +8,14 @@ sistema hidropónico NFT/DWC en tubos de PVC, con **Arduino Uno** + **ESP32**.
 > **relé + fuente separada** y **nunca** se cablea directo al micro. Ver
 > [Actuadores](#7-actuadores-bomba--válvula).
 
+## 📐 Dibujo del circuito completo
+
+![Circuito de monitoreo ESP32](circuito-esp32.svg)
+
+Diagrama con cada sub-circuito (pH, temperatura del agua, nivel, EC y relé) y sus
+resistencias/divisores: [`circuito-esp32.svg`](circuito-esp32.svg). El detalle de
+cada conexión está abajo.
+
 ---
 
 ## 1. Qué medimos y con qué
@@ -226,6 +234,31 @@ seria conviene migrar al ultrasónico.
 
 ---
 
+## 4-ter. EC / nutrientes — sonda TDS analógica (recomendado)
+
+Sin la EC (conductividad) medís el pH pero no sabés **cuánto nutriente** hay en la
+solución. La sonda EC/TDS analógica (ej. DFRobot Gravity TDS) se alimenta a **5V**
+y da una salida analógica **< 2.5V**, así que en ESP32 entra **directo al ADC sin
+divisor**.
+
+**En ESP32:**
+
+| Módulo EC/TDS | ESP32 |
+|---------------|-------|
+| VCC | 5V (VIN) |
+| GND | GND común |
+| Ao (analógica) | GPIO35 (ADC1, input-only) |
+
+**En Arduino Uno:** Ao → A1 (5V).
+
+- La lectura de EC **depende de la temperatura** → el firmware la compensa con la
+  del DS18B20 (2%/°C, fórmula DFRobot incluida).
+- Mantené la sonda de EC separada de la de pH (se interfieren si están muy juntas).
+- Calibrá con solución patrón de EC conocida (ej. 1.413 mS/cm) ajustando
+  `EC_K_VALUE` en `config.h`.
+
+---
+
 ## 5. Diagrama de conexión completo — Opción A (ESP32 nodo único)
 
 ```mermaid
@@ -269,11 +302,12 @@ flowchart TB
 | Señal | Pin ESP32 | Notas |
 |-------|-----------|-------|
 | pH (Po) | GPIO34 (ADC1, input-only) | vía divisor 10k/20k |
+| EC/TDS (Ao) | GPIO35 (ADC1, input-only) | directo, sin divisor |
 | Temp agua (DS18B20) | GPIO4 | pull-up 4.7k a 3V3 |
 | Nivel Trig | GPIO5 | salida |
 | Nivel Echo | GPIO18 | vía divisor 1k/2k |
-| Relé bomba (opcional) | GPIO13 | a módulo relé optoacoplado |
-| Alimentación 5V | VIN | pH + ultrasónico |
+| Relé bomba | GPIO13 | a módulo relé optoacoplado |
+| Alimentación 5V | VIN | pH + EC + ultrasónico + relé |
 | Alimentación 3.3V | 3V3 | DS18B20 |
 | GND | GND | **común a TODOS los sensores y fuentes** |
 

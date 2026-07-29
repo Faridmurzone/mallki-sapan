@@ -1,15 +1,17 @@
 /* ============================================================
  * Mallki Sapan — Nodo hidropónico ESP32 (Opción A, standalone)
  * ------------------------------------------------------------
- * Lee pH, temperatura del agua (DS18B20) y nivel del tanque
- * (ultrasónico), filtra por mediana y publica cada lectura al
- * backend via HTTP POST /api/sensors/:id/readings.
+ * Lee pH, temperatura del agua (DS18B20), nivel del tanque
+ * (ultrasónico) y EC/nutrientes (sonda TDS), filtra por mediana
+ * y publica cada lectura al backend:
+ *     POST /api/sensors/:id/readings
  *
- * Librerías (Library Manager):
- *   - OneWire
- *   - DallasTemperature
+ * Además controla la bomba de riego (relé) por ciclos con
+ * cortes de seguridad: no bombea con el tanque por debajo de
+ * MIN_TANK_LEVEL_PCT ni con el pH fuera de rango seguro (RN-01).
+ *
+ * Librerías (Library Manager): OneWire, DallasTemperature.
  * Placa: "ESP32 Dev Module".
- *
  * ANTES de compilar: copiá ../config.example.h como config.h
  * en ESTA carpeta y completá tus valores.
  * ============================================================ */
@@ -23,20 +25,27 @@
 OneWire oneWire(PIN_DS18B20);
 DallasTemperature ds18b20(&oneWire);
 
+// Prototipos (por si el auto-prototipado del IDE no los genera).
+void postIrrigationEvent(float durationMin);
+bool postReading(const char *sensorId, float value);
+
 unsigned long lastSample = 0;
 unsigned long lastSend   = 0;
+unsigned long pumpTimer  = 0;
 
 // Acumuladores para promediar entre envíos.
-float phAccum = 0, tempAccum = 0, levelAccum = 0;
+float phAccum = 0, tempAccum = 0, levelAccum = 0, ecAccum = 0;
 int   sampleCount = 0;
+
+// Últimos valores válidos (para decisiones de seguridad del riego).
+float lastPh = 7.0, lastTemp = 22.0, lastLevel = 100.0;
+bool  pumpOn = false;
 
 // ---------- Utilidades ----------
 int cmpFloat(const void *a, const void *b) {
   float fa = *(const float *)a, fb = *(const float *)b;
   return (fa > fb) - (fa < fb);
 }
-
-// Mediana de N muestras de una función lectora.
 float readMedian(float (*readOnce)(), int n) {
   float buf[16];
   if (n > 16) n = 16;
@@ -51,7 +60,6 @@ float readPhVoltageOnce() {
   // Voltaje en el pin, corregido por el divisor de tensión.
   return (raw / ADC_MAX) * ADC_VREF / PH_DIVIDER_FACTOR;
 }
-
 float voltageToPh(float v) {
   // Recta de 2 puntos: pH = m*(v - v7) + 7
   float slope = (7.0f - 4.0f) / (PH_VOLTAGE_AT_7 - PH_VOLTAGE_AT_4);
@@ -60,21 +68,31 @@ float voltageToPh(float v) {
 
 float readWaterTemp() {
   ds18b20.requestTemperatures();
-  float t = ds18b20.getTempCByIndex(0);
-  return t;  // -127 si el sensor no responde
+  return ds18b20.getTempCByIndex(0);  // -127 si no responde
+}
+
+float readEcVoltageOnce() {
+  int raw = analogRead(PIN_EC_ADC);
+  return (raw / ADC_MAX) * ADC_VREF;   // sonda EC/TDS: sin divisor
+}
+// EC en mS/cm con compensación por temperatura (formula DFRobot TDS).
+float voltageToEc(float v, float tempC) {
+  float comp = 1.0f + 0.02f * (tempC - 25.0f);   // 2%/°C
+  float vc = v / comp;
+  float tdsPpm = (133.42f * vc * vc * vc - 255.86f * vc * vc + 857.39f * vc) * 0.5f;
+  return (tdsPpm / 500.0f) * EC_K_VALUE;          // ppm -> mS/cm
 }
 
 float readDistanceOnce() {
   digitalWrite(PIN_TRIG, LOW);  delayMicroseconds(3);
   digitalWrite(PIN_TRIG, HIGH); delayMicroseconds(10);
   digitalWrite(PIN_TRIG, LOW);
-  unsigned long dur = pulseIn(PIN_ECHO, HIGH, 30000UL); // timeout 30ms (~5m)
-  if (dur == 0) return LEVEL_MAX_CM + 1;                // sin eco
+  unsigned long dur = pulseIn(PIN_ECHO, HIGH, 30000UL); // timeout ~5m
+  if (dur == 0) return LEVEL_MAX_CM + 1;
   return (dur * 0.0343f) / 2.0f;                        // cm
 }
-
 float distanceToLevelPct(float distCm) {
-  if (distCm > LEVEL_MAX_CM) return -1;                 // inválido
+  if (distCm > LEVEL_MAX_CM) return -1;
   float waterCol = TANK_HEIGHT_CM - (distCm - SENSOR_OFFSET_CM);
   float pct = (waterCol / TANK_HEIGHT_CM) * 100.0f;
   if (pct < 0) pct = 0;
@@ -82,7 +100,45 @@ float distanceToLevelPct(float distCm) {
   return pct;
 }
 
-// ---------- WiFi ----------
+// ---------- Relé / bomba ----------
+void pumpSet(bool on) {
+  pumpOn = on;
+#if RELAY_ACTIVE_HIGH
+  digitalWrite(PIN_RELAY, on ? HIGH : LOW);
+#else
+  digitalWrite(PIN_RELAY, on ? LOW : HIGH);   // módulos active-low
+#endif
+}
+
+// Máquina de estados de riego por ciclos con cortes de seguridad.
+void irrigationControl() {
+#if IRRIGATION_ENABLED
+  unsigned long now = millis();
+
+  // Corte de seguridad: nivel bajo o pH peligroso -> apagar y no reanudar.
+  bool unsafe = (lastLevel < MIN_TANK_LEVEL_PCT) ||
+                (lastPh < PH_SAFE_MIN || lastPh > PH_SAFE_MAX);
+  if (unsafe) {
+    if (pumpOn) {
+      pumpSet(false);
+      pumpTimer = now;
+      Serial.printf("SEGURIDAD: bomba OFF (nivel=%.0f%% pH=%.2f)\n", lastLevel, lastPh);
+    }
+    return;
+  }
+
+  if (pumpOn && now - pumpTimer >= PUMP_ON_MS) {
+    pumpSet(false); pumpTimer = now;
+    Serial.println("Riego: bomba OFF (fin de ciclo)");
+    postIrrigationEvent(PUMP_ON_MS / 60000.0f);   // registrar evento cumplido
+  } else if (!pumpOn && now - pumpTimer >= PUMP_OFF_MS) {
+    pumpSet(true); pumpTimer = now;
+    Serial.println("Riego: bomba ON");
+  }
+#endif
+}
+
+// ---------- WiFi / HTTP ----------
 void ensureWifi() {
   if (WiFi.status() == WL_CONNECTED) return;
   Serial.print("WiFi conectando");
@@ -93,13 +149,11 @@ void ensureWifi() {
     delay(500); Serial.print(".");
   }
   Serial.println(WiFi.status() == WL_CONNECTED
-                 ? " OK " + WiFi.localIP().toString()
-                 : " FALLO");
+                 ? " OK " + WiFi.localIP().toString() : " FALLO");
 }
 
-// POST con reintentos + backoff exponencial.
 bool postReading(const char *sensorId, float value) {
-  if (isnan(value) || value < -1000) return false;      // descarta basura
+  if (isnan(value) || value < -1000) return false;
   ensureWifi();
   if (WiFi.status() != WL_CONNECTED) return false;
 
@@ -120,10 +174,27 @@ bool postReading(const char *sensorId, float value) {
       return true;
     }
     Serial.printf("  !! POST %s HTTP %d (intento %d)\n", sensorId, code, attempt + 1);
-    delay(backoff);
-    backoff *= 2;
+    delay(backoff); backoff *= 2;
   }
   return false;
+}
+
+// Registra el evento de riego cumplido en el backend (auditoría, RN-04).
+void postIrrigationEvent(float durationMin) {
+  ensureWifi();
+  if (WiFi.status() != WL_CONNECTED) return;
+  String url = String(BACKEND_HOST) + "/api/irrigation/auto";
+  // zoneIds vacío -> el backend valida; ajustá con tu(s) zona(s) reales.
+  String body = "{\"zoneIds\":[\"" IRRIGATION_ZONE_ID "\"],\"duration\":" +
+                String(durationMin, 0) + ",\"trigger\":\"scheduled\"}";
+  HTTPClient http;
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+  if (strlen(BACKEND_TOKEN) > 0)
+    http.addHeader("Authorization", String("Bearer ") + BACKEND_TOKEN);
+  int code = http.POST(body);
+  Serial.printf("  -> evento riego (HTTP %d)\n", code);
+  http.end();
 }
 
 // ---------- Setup / Loop ----------
@@ -135,13 +206,15 @@ void setup() {
   pinMode(PIN_TRIG, OUTPUT);
   pinMode(PIN_ECHO, INPUT);
   pinMode(PIN_RELAY, OUTPUT);
-  digitalWrite(PIN_RELAY, LOW);
+  pumpSet(false);
 
-  analogReadResolution(12);          // 0..4095
-  analogSetPinAttenuation(PIN_PH_ADC, ADC_11db); // rango ~0..3.3V
+  analogReadResolution(12);
+  analogSetPinAttenuation(PIN_PH_ADC, ADC_11db);
+  analogSetPinAttenuation(PIN_EC_ADC, ADC_11db);
 
   ds18b20.begin();
   ensureWifi();
+  pumpTimer = millis();
 }
 
 void loop() {
@@ -156,16 +229,22 @@ void loop() {
     float temp = readWaterTemp();
     float dist = readMedian(readDistanceOnce, 5);
     float lvl  = distanceToLevelPct(dist);
+    float ecV  = readMedian(readEcVoltageOnce, SAMPLES_PER_READING);
+    float ec   = voltageToEc(ecV, (temp > -50 && temp < 80) ? temp : 25.0f);
 
-    Serial.printf("muestra: pH=%.2f (%.3fV) | agua=%.1fC | nivel=%.0f%% (%.1fcm)\n",
-                  ph, phV, temp, lvl, dist);
+    Serial.printf("pH=%.2f | agua=%.1fC | nivel=%.0f%% | EC=%.2fmS/cm\n",
+                  ph, temp, lvl, ec);
 
-    // Acumular solo valores válidos.
-    if (ph > 0 && ph < 14)          { phAccum += ph; }
-    if (temp > -50 && temp < 80)    { tempAccum += temp; }
-    if (lvl >= 0)                   { levelAccum += lvl; }
+    // Actualizar últimos válidos (para seguridad del riego).
+    if (ph > 0 && ph < 14)       { lastPh = ph;    phAccum   += ph; }
+    if (temp > -50 && temp < 80) { lastTemp = temp; tempAccum += temp; }
+    if (lvl >= 0)                { lastLevel = lvl; levelAccum += lvl; }
+    if (ec >= 0 && ec < 10)      { ecAccum   += ec; }
     sampleCount++;
   }
+
+  // --- Control de riego (cada loop, es rápido) ---
+  irrigationControl();
 
   // --- Envío ---
   if (now - lastSend >= SEND_INTERVAL_MS && sampleCount > 0) {
@@ -173,7 +252,8 @@ void loop() {
     postReading(SENSOR_ID_PH,    phAccum   / sampleCount);
     postReading(SENSOR_ID_TEMP,  tempAccum / sampleCount);
     postReading(SENSOR_ID_LEVEL, levelAccum / sampleCount);
-    phAccum = tempAccum = levelAccum = 0;
+    postReading(SENSOR_ID_EC,    ecAccum   / sampleCount);
+    phAccum = tempAccum = levelAccum = ecAccum = 0;
     sampleCount = 0;
   }
 }

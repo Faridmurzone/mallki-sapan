@@ -5,6 +5,21 @@ import { AppError } from '../middleware/error-handler.js';
 
 const router = Router();
 
+// Nivel minimo del tanque (%) para permitir el riego.
+// Por debajo de esto la bomba trabajaria en seco -> se bloquea (RN-01).
+const MIN_TANK_LEVEL_PCT = 15;
+
+// Devuelve el nivel de tanque mas bajo reportado por algun sensor water_level.
+// null si no hay sensores de nivel o no tienen lectura todavia.
+async function getLowestTankLevel(): Promise<number | null> {
+  const levelSensors = await prisma.sensor.findMany({
+    where: { type: 'water_level', lastValue: { not: null } },
+    select: { lastValue: true },
+  });
+  if (levelSensors.length === 0) return null;
+  return Math.min(...levelSensors.map(s => s.lastValue as number));
+}
+
 // Schemas de validación
 const createZoneSchema = z.object({
   name: z.string().min(1),
@@ -211,6 +226,72 @@ router.post('/stop', async (_req, res) => {
   res.json({
     ...event,
     message: 'Riego detenido',
+  });
+});
+
+// GET /api/irrigation/can-irrigate - Consultar si se puede regar (chequeo de nivel)
+// Lo usa el firmware/dashboard antes de bombear. No crea evento.
+router.get('/can-irrigate', async (_req, res) => {
+  const level = await getLowestTankLevel();
+  const allowed = level === null ? true : level >= MIN_TANK_LEVEL_PCT;
+
+  res.json({
+    allowed,
+    level,
+    minLevel: MIN_TANK_LEVEL_PCT,
+    reason: level === null
+      ? 'Sin sensor de nivel: no se puede verificar (se permite por defecto)'
+      : allowed
+        ? 'Nivel suficiente'
+        : `Nivel ${level}% por debajo del minimo ${MIN_TANK_LEVEL_PCT}% - bomba bloqueada`,
+  });
+});
+
+// POST /api/irrigation/auto - Riego automatico con regla de seguridad (RN-01)
+// Verifica el nivel del tanque ANTES de crear el evento. Si esta por debajo
+// del minimo responde 409 y NO riega. Usar para riego programado o por IA.
+router.post('/auto', async (req, res) => {
+  const { zoneIds, duration, trigger } = z.object({
+    zoneIds: z.array(z.string()).min(1),
+    duration: z.number().positive().default(15),
+    trigger: z.enum(['scheduled', 'ai_decision']).default('scheduled'),
+  }).parse(req.body);
+
+  const level = await getLowestTankLevel();
+  if (level !== null && level < MIN_TANK_LEVEL_PCT) {
+    throw new AppError(
+      409,
+      `Riego bloqueado: nivel del tanque ${level}% < minimo ${MIN_TANK_LEVEL_PCT}%. Rellenar el tanque.`,
+    );
+  }
+
+  // Verificar que las zonas existen
+  const zones = await prisma.irrigationZone.findMany({
+    where: { id: { in: zoneIds } },
+  });
+  if (zones.length !== zoneIds.length) {
+    throw new AppError(400, 'Una o más zonas no encontradas');
+  }
+
+  // Volumen aproximado (3 L/min por zona)
+  const waterVolume = duration * 3 * zoneIds.length;
+
+  const event = await prisma.irrigationEvent.create({
+    data: {
+      trigger,
+      duration,
+      waterVolume,
+      endedAt: new Date(Date.now() + duration * 60 * 1000),
+      zones: { create: zoneIds.map(zoneId => ({ zoneId })) },
+    },
+    include: { zones: { include: { zone: true } } },
+  });
+
+  res.status(201).json({
+    ...event,
+    tankLevel: level,
+    message: `Riego automatico (${trigger}) en ${event.zones.map(ez => ez.zone.name).join(', ')}`,
+    zones: event.zones.map(ez => ez.zone.name),
   });
 });
 
