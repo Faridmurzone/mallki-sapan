@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { apiGet, apiPut } from '@/lib/api';
 import { Calibration } from '@/types';
-import { FlaskConical, Zap, Save, CheckCircle, AlertTriangle } from 'lucide-react';
+import { FlaskConical, Zap, Save, CheckCircle, AlertTriangle, Copy, Check } from 'lucide-react';
 
 type SaveState = { kind: 'idle' | 'saving' | 'ok' | 'error'; msg?: string };
 
@@ -17,6 +17,7 @@ export function CalibrationPanel() {
 
   const [phState, setPhState] = useState<SaveState>({ kind: 'idle' });
   const [ecState, setEcState] = useState<SaveState>({ kind: 'idle' });
+  const [copied, setCopied] = useState(false);
 
   // Prefill desde el backend (si está disponible).
   useEffect(() => {
@@ -63,6 +64,11 @@ export function CalibrationPanel() {
     }
   }
 
+  const snippet =
+    `#define PH_VOLTAGE_AT_7  ${isFinite(nv7) ? nv7.toFixed(2) : '2.50'}f\n` +
+    `#define PH_VOLTAGE_AT_4  ${isFinite(nv4) ? nv4.toFixed(2) : '3.04'}f\n` +
+    `#define EC_K_VALUE       ${parseFloat(k) > 0 ? parseFloat(k).toFixed(2) : '1.00'}f`;
+
   return (
     <Card>
       <CardHeader>
@@ -107,9 +113,31 @@ export function CalibrationPanel() {
           <SaveRow state={ecState} onSave={saveEc} />
         </div>
 
-        <p className="text-xs text-gray-400">
-          Estos valores se guardan en el backend y se copian al <code>config.h</code> del firmware.
-        </p>
+        {/* Snippet para config.h */}
+        <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">Para el firmware (config.h)</span>
+            <button
+              onClick={() => {
+                navigator.clipboard?.writeText(snippet).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                });
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Copiado' : 'Copiar'}
+            </button>
+          </div>
+          <pre className="overflow-x-auto rounded-md bg-gray-900 p-3 text-xs leading-relaxed text-gray-100">
+            <code>{snippet}</code>
+          </pre>
+          <p className="mt-2 text-xs text-gray-400">
+            El nodo ESP32 también lee esta calibración del backend al arrancar, así que
+            normalmente no hace falta recompilar.
+          </p>
+        </div>
       </CardContent>
     </Card>
   );

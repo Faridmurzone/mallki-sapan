@@ -28,6 +28,16 @@ DallasTemperature ds18b20(&oneWire);
 // Prototipos (por si el auto-prototipado del IDE no los genera).
 void postIrrigationEvent(float durationMin);
 bool postReading(const char *sensorId, float value);
+void fetchCalibration();
+
+// Calibracion: arranca con los defaults de config.h y se sobrescribe con
+// lo que haya en el backend (GET /api/calibration/:key) -> no hay que recompilar.
+float g_phV7 = PH_VOLTAGE_AT_7;
+float g_phV4 = PH_VOLTAGE_AT_4;
+float g_ecK  = EC_K_VALUE;
+
+unsigned long lastCalib = 0;
+#define CALIB_INTERVAL_MS 1800000UL   // re-leer calibracion cada 30 min
 
 unsigned long lastSample = 0;
 unsigned long lastSend   = 0;
@@ -61,9 +71,9 @@ float readPhVoltageOnce() {
   return (raw / ADC_MAX) * ADC_VREF / PH_DIVIDER_FACTOR;
 }
 float voltageToPh(float v) {
-  // Recta de 2 puntos: pH = m*(v - v7) + 7
-  float slope = (7.0f - 4.0f) / (PH_VOLTAGE_AT_7 - PH_VOLTAGE_AT_4);
-  return slope * (v - PH_VOLTAGE_AT_7) + 7.0f;
+  // Recta de 2 puntos: pH = m*(v - v7) + 7  (usa la calibracion vigente)
+  float slope = (7.0f - 4.0f) / (g_phV7 - g_phV4);
+  return slope * (v - g_phV7) + 7.0f;
 }
 
 float readWaterTemp() {
@@ -80,7 +90,7 @@ float voltageToEc(float v, float tempC) {
   float comp = 1.0f + 0.02f * (tempC - 25.0f);   // 2%/°C
   float vc = v / comp;
   float tdsPpm = (133.42f * vc * vc * vc - 255.86f * vc * vc + 857.39f * vc) * 0.5f;
-  return (tdsPpm / 500.0f) * EC_K_VALUE;          // ppm -> mS/cm
+  return (tdsPpm / 500.0f) * g_ecK;               // ppm -> mS/cm (K calibrable)
 }
 
 float readDistanceOnce() {
@@ -152,6 +162,48 @@ void ensureWifi() {
                  ? " OK " + WiFi.localIP().toString() : " FALLO");
 }
 
+// Extrae un numero por clave de un JSON plano {"...":v,...}.
+float jsonNumber(const String &s, const char *key) {
+  int k = s.indexOf(String("\"") + key + "\"");
+  if (k < 0) return NAN;
+  int colon = s.indexOf(':', k);
+  if (colon < 0) return NAN;
+  return s.substring(colon + 1).toFloat();
+}
+
+// Lee la calibracion vigente del backend y sobrescribe los defaults.
+void fetchCalibration() {
+  ensureWifi();
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  // pH: { params: { voltageAt7, voltageAt4 } }
+  {
+    HTTPClient http;
+    http.begin(String(BACKEND_HOST) + "/api/calibration/ph");
+    if (http.GET() == 200) {
+      String b = http.getString();
+      float v7 = jsonNumber(b, "voltageAt7");
+      float v4 = jsonNumber(b, "voltageAt4");
+      if (!isnan(v7) && !isnan(v4) && v7 != v4) {
+        g_phV7 = v7; g_phV4 = v4;
+        Serial.printf("calibracion pH: v7=%.3f v4=%.3f\n", v7, v4);
+      }
+    }
+    http.end();
+  }
+  // EC: { params: { kValue } }
+  {
+    HTTPClient http;
+    http.begin(String(BACKEND_HOST) + "/api/calibration/ec");
+    if (http.GET() == 200) {
+      String b = http.getString();
+      float k = jsonNumber(b, "kValue");
+      if (!isnan(k) && k > 0) { g_ecK = k; Serial.printf("calibracion EC: k=%.3f\n", k); }
+    }
+    http.end();
+  }
+}
+
 bool postReading(const char *sensorId, float value) {
   if (isnan(value) || value < -1000) return false;
   ensureWifi();
@@ -214,6 +266,8 @@ void setup() {
 
   ds18b20.begin();
   ensureWifi();
+  fetchCalibration();          // lee la calibracion guardada desde la web
+  lastCalib = millis();
   pumpTimer = millis();
 }
 
@@ -241,6 +295,12 @@ void loop() {
     if (lvl >= 0)                { lastLevel = lvl; levelAccum += lvl; }
     if (ec >= 0 && ec < 10)      { ecAccum   += ec; }
     sampleCount++;
+  }
+
+  // --- Re-leer calibración periódicamente (sin recompilar) ---
+  if (now - lastCalib >= CALIB_INTERVAL_MS) {
+    lastCalib = now;
+    fetchCalibration();
   }
 
   // --- Control de riego (cada loop, es rápido) ---

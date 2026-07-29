@@ -254,7 +254,7 @@ router.post('/auto', async (req, res) => {
   const { zoneIds, duration, trigger } = z.object({
     zoneIds: z.array(z.string()).min(1),
     duration: z.number().positive().default(15),
-    trigger: z.enum(['scheduled', 'ai_decision']).default('scheduled'),
+    trigger: z.enum(['scheduled', 'ai_decision', 'manual']).default('scheduled'),
   }).parse(req.body);
 
   const level = await getLowestTankLevel();

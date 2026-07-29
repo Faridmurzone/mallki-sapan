@@ -31,6 +31,10 @@
 #define SAMPLES_PER_READING 7         // muestras para la mediana
 
 // ---------- Calibración pH (2 puntos) ----------
+// NOTA: estos son valores por defecto (fallback). El nodo ESP32 lee la
+// calibración guardada desde la web (GET /api/calibration) al arrancar y
+// cada 30 min, así podés recalibrar sin recompilar. Si no hay backend, usa
+// estos valores.
 // Voltajes leídos por el firmware con la sonda en buffer 7.0 y 4.0.
 // Corré el sketch, mirá el Serial, anotá y cargá acá.
 #define PH_VOLTAGE_AT_7     2.50f
