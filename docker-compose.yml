@@ -1,0 +1,64 @@
+# Mallki Sapan — stack completo (Postgres + backend + frontend + ai-engine)
+#
+#   docker compose up --build
+#
+# Luego, para cargar datos de prueba (sensores + 24h de lecturas + alertas):
+#   docker compose exec backend npm run db:seed:hidro
+#
+# URLs:  frontend http://localhost:3000   ·   backend http://localhost:3001
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mallki
+      POSTGRES_PASSWORD: mallki
+      POSTGRES_DB: mallki_sapan
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mallki -d mallki_sapan"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://mallki:mallki@postgres:5432/mallki_sapan?schema=public
+      PORT: 3001
+      NODE_ENV: production
+      FRONTEND_URL: http://localhost:3000
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # DESDE EL NAVEGADOR el backend está en localhost:3001 (puerto publicado).
+        NEXT_PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  ai-engine:
+    build: ./ai-engine
+    environment:
+      # DENTRO de la red de docker el backend es http://backend:3001
+      BACKEND_URL: http://backend:3001
+      POLL_INTERVAL_SEC: "60"
+      AI_IRRIGATION_ENABLED: "0"
+      # Descomentá para habilitar recomendaciones con Claude:
+      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

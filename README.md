@@ -81,9 +81,20 @@ mallki-sapan/
 - [x] Riego automático (relé en firmware + scheduler en backend)
 - [ ] Integración end-to-end en hardware real (en progreso)
 
+## Puesta en marcha rápida
+
+```bash
+docker compose up --build                          # Postgres + backend + frontend + ai-engine
+docker compose exec backend npm run db:seed:hidro  # datos de prueba (sensores + 24h + alertas)
+```
+
+Frontend en http://localhost:3000 · backend en http://localhost:3001. Guía completa
+(y opción local sin Docker): [docs/puesta-en-marcha.md](docs/puesta-en-marcha.md).
+
 ## Documentación
 
-- [Circuitos y cableado](docs/hardware/circuitos.md) — pH, temperatura del agua y nivel del tanque para hidroponía en tubos PVC.
+- [Puesta en marcha end-to-end](docs/puesta-en-marcha.md) — Docker/local, datos de prueba y hardware real.
+- [Circuitos y cableado](docs/hardware/circuitos.md) — pH, temperatura del agua, nivel y EC para hidroponía en tubos PVC.
 - [Arquitectura y escalado](docs/arquitectura/arquitectura.md)
 - [Especificación funcional](docs/funcional/especificacion-funcional.md)
 - [Firmware (ESP32 / Arduino Uno)](arduino/)

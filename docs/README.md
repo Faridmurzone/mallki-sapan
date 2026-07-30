@@ -7,6 +7,7 @@ con Arduino Uno + ESP32.
 
 | Documento | Contenido |
 |-----------|-----------|
+| [puesta-en-marcha.md](puesta-en-marcha.md) | **Puesta en marcha end-to-end**: levantar todo con Docker (o local), cargar datos de prueba y conectar el hardware real. |
 | [hardware/circuitos.md](hardware/circuitos.md) | **Circuitos y cableado**: pH, temperatura del agua, nivel del tanque; pinouts, divisores, calibración, BOM y checklist de armado. |
 | [arquitectura/arquitectura.md](arquitectura/arquitectura.md) | **Arquitectura y escalado**: flujo de datos, contrato de API, topología (HTTP → MQTT), modelo de datos para multi-nodo, confiabilidad. |
 | [funcional/especificacion-funcional.md](funcional/especificacion-funcional.md) | **Especificación funcional**: parámetros y rangos, casos de uso, reglas de negocio, estados y criterios de aceptación del MVP. |
