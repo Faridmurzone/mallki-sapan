@@ -74,12 +74,12 @@ mallki-sapan/
 ## Estado del Desarrollo
 
 - [x] Definición de arquitectura
-- [ ] Frontend con dashboard (en progreso)
-- [ ] Motor de IA
-- [x] Firmware Arduino de monitoreo (pH, temp agua, nivel) — ver [`arduino/`](arduino/)
+- [x] Frontend con dashboard (nivel, EC, históricos en vivo, calibración, riego)
+- [x] Motor de IA (alertas + decisión de riego) — ver [`ai-engine/`](ai-engine/)
+- [x] Firmware Arduino de monitoreo (pH, temp agua, nivel, EC) — ver [`arduino/`](arduino/)
 - [x] Documentación de hardware/circuitos — ver [`docs/`](docs/)
-- [ ] Riego automático (actuadores)
-- [ ] Integración de componentes
+- [x] Riego automático (relé en firmware + scheduler en backend)
+- [ ] Integración end-to-end en hardware real (en progreso)
 
 ## Documentación
 

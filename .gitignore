@@ -1,3 +1,9 @@
 
 # Firmware secrets (WiFi / tokens) — no subir
 arduino/**/config.h
+
+# AI engine (Python)
+ai-engine/.env
+ai-engine/.venv/
+__pycache__/
+*.pyc

@@ -2,23 +2,15 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../services/database.js';
 import { AppError } from '../middleware/error-handler.js';
+import {
+  MIN_TANK_LEVEL_PCT,
+  getLowestTankLevel,
+  runIrrigation,
+  TankTooLowError,
+  ZoneNotFoundError,
+} from '../services/irrigation.js';
 
 const router = Router();
-
-// Nivel minimo del tanque (%) para permitir el riego.
-// Por debajo de esto la bomba trabajaria en seco -> se bloquea (RN-01).
-const MIN_TANK_LEVEL_PCT = 15;
-
-// Devuelve el nivel de tanque mas bajo reportado por algun sensor water_level.
-// null si no hay sensores de nivel o no tienen lectura todavia.
-async function getLowestTankLevel(): Promise<number | null> {
-  const levelSensors = await prisma.sensor.findMany({
-    where: { type: 'water_level', lastValue: { not: null } },
-    select: { lastValue: true },
-  });
-  if (levelSensors.length === 0) return null;
-  return Math.min(...levelSensors.map(s => s.lastValue as number));
-}
 
 // Schemas de validación
 const createZoneSchema = z.object({
@@ -257,42 +249,63 @@ router.post('/auto', async (req, res) => {
     trigger: z.enum(['scheduled', 'ai_decision', 'manual']).default('scheduled'),
   }).parse(req.body);
 
-  const level = await getLowestTankLevel();
-  if (level !== null && level < MIN_TANK_LEVEL_PCT) {
-    throw new AppError(
-      409,
-      `Riego bloqueado: nivel del tanque ${level}% < minimo ${MIN_TANK_LEVEL_PCT}%. Rellenar el tanque.`,
-    );
+  try {
+    const { event, level } = await runIrrigation({ zoneIds, duration, trigger });
+    res.status(201).json({
+      ...event,
+      tankLevel: level,
+      message: `Riego automatico (${trigger}) en ${event.zones.map(ez => ez.zone.name).join(', ')}`,
+      zones: event.zones.map(ez => ez.zone.name),
+    });
+  } catch (e) {
+    if (e instanceof TankTooLowError) throw new AppError(409, e.message);
+    if (e instanceof ZoneNotFoundError) throw new AppError(400, e.message);
+    throw e;
   }
+});
 
-  // Verificar que las zonas existen
-  const zones = await prisma.irrigationZone.findMany({
-    where: { id: { in: zoneIds } },
+// =====================================
+// RIEGO PROGRAMADO (schedules)
+// =====================================
+
+const scheduleSchema = z.object({
+  name: z.string().min(1),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Formato HH:MM'),
+  duration: z.number().int().positive(),
+  days: z.array(z.number().int().min(0).max(6)).default([]),
+  zoneIds: z.array(z.string()).min(1),
+  enabled: z.boolean().default(true),
+});
+
+// GET /api/irrigation/schedules
+router.get('/schedules', async (_req, res) => {
+  const schedules = await prisma.irrigationSchedule.findMany({
+    orderBy: { time: 'asc' },
   });
-  if (zones.length !== zoneIds.length) {
-    throw new AppError(400, 'Una o más zonas no encontradas');
-  }
+  res.json(schedules);
+});
 
-  // Volumen aproximado (3 L/min por zona)
-  const waterVolume = duration * 3 * zoneIds.length;
+// POST /api/irrigation/schedules
+router.post('/schedules', async (req, res) => {
+  const data = scheduleSchema.parse(req.body);
+  const schedule = await prisma.irrigationSchedule.create({ data });
+  res.status(201).json(schedule);
+});
 
-  const event = await prisma.irrigationEvent.create({
-    data: {
-      trigger,
-      duration,
-      waterVolume,
-      endedAt: new Date(Date.now() + duration * 60 * 1000),
-      zones: { create: zoneIds.map(zoneId => ({ zoneId })) },
-    },
-    include: { zones: { include: { zone: true } } },
+// PUT /api/irrigation/schedules/:id
+router.put('/schedules/:id', async (req, res) => {
+  const data = scheduleSchema.partial().parse(req.body);
+  const schedule = await prisma.irrigationSchedule.update({
+    where: { id: req.params.id },
+    data,
   });
+  res.json(schedule);
+});
 
-  res.status(201).json({
-    ...event,
-    tankLevel: level,
-    message: `Riego automatico (${trigger}) en ${event.zones.map(ez => ez.zone.name).join(', ')}`,
-    zones: event.zones.map(ez => ez.zone.name),
-  });
+// DELETE /api/irrigation/schedules/:id
+router.delete('/schedules/:id', async (req, res) => {
+  await prisma.irrigationSchedule.delete({ where: { id: req.params.id } });
+  res.status(204).send();
 });
 
 // GET /api/irrigation/stats - Estadísticas de riego

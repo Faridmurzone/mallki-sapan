@@ -234,6 +234,23 @@ model IrrigationEventZone {
   @@map("irrigation_event_zones")
 }
 
+// Riego programado por horario. Lo ejecuta el scheduler del backend
+// (services/scheduler.ts) respetando el chequeo de nivel del tanque.
+model IrrigationSchedule {
+  id        String    @id @default(cuid())
+  name      String
+  time      String // "HH:MM" (24h, hora local del server)
+  duration  Int // minutos
+  days      Int[] // 0-6 (dom..sab); vacío = todos los días
+  zoneIds   String[] // ids de zonas a regar
+  enabled   Boolean   @default(true)
+  lastRun   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("irrigation_schedules")
+}
+
 // ============================================
 // USUARIOS (para autenticación futura)
 // ============================================
