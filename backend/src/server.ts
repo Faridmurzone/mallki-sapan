@@ -1,5 +1,6 @@
 import app from './app.js';
 import { prisma } from './services/database.js';
+import { startScheduler } from './services/scheduler.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -13,6 +14,9 @@ async function main() {
       console.log(`🌱 Mallki Sapan API corriendo en http://localhost:${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/health`);
     });
+
+    // Iniciar el scheduler de riego programado
+    startScheduler();
   } catch (error) {
     console.error('❌ Error al iniciar el servidor:', error);
     process.exit(1);

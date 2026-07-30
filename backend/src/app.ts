@@ -4,6 +4,7 @@ import 'express-async-errors';
 
 import { errorHandler } from './middleware/error-handler.js';
 import sensorsRouter from './routes/sensors.js';
+import calibrationRouter from './routes/calibration.js';
 import cropsRouter from './routes/crops.js';
 import alertsRouter from './routes/alerts.js';
 import photosRouter from './routes/photos.js';
@@ -26,6 +27,7 @@ app.get('/health', (_req, res) => {
 
 // API Routes
 app.use('/api/sensors', sensorsRouter);
+app.use('/api/calibration', calibrationRouter);
 app.use('/api/crops', cropsRouter);
 app.use('/api/alerts', alertsRouter);
 app.use('/api/photos', photosRouter);

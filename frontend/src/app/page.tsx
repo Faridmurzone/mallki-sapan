@@ -1,4 +1,6 @@
 import { StatsCard } from '@/components/dashboard/stats-card';
+import { HydroponicsPanel } from '@/components/dashboard/hydroponics-panel';
+import { HistoryCharts } from '@/components/dashboard/history-charts';
 import { SensorChart } from '@/components/dashboard/sensor-chart';
 import { CropsOverview } from '@/components/dashboard/crops-overview';
 import { AlertsPanel } from '@/components/dashboard/alerts-panel';
@@ -68,6 +70,12 @@ export default function DashboardPage() {
           color="blue"
         />
       </div>
+
+      {/* Parámetros de la solución nutritiva (hidroponía) */}
+      <HydroponicsPanel />
+
+      {/* Históricos en vivo (nivel + EC desde el backend) */}
+      <HistoryCharts />
 
       {/* Main content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

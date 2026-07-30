@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1140 1560" font-family="Segoe UI, Arial, sans-serif">
+  <style>
+    .panel { fill:#ffffff; stroke:#c9d2dc; stroke-width:1.5; rx:14; }
+    .mcu   { fill:#26323f; stroke:#12202c; stroke-width:2; }
+    .mod   { fill:#eef3f8; stroke:#8fa6ba; stroke-width:2; }
+    .pumpbox { fill:#fff3f3; stroke:#e5484d; stroke-width:2; }
+    .title { font-size:20px; font-weight:700; fill:#1c2733; }
+    .sub   { font-size:13px; fill:#5a6b7b; }
+    .white { fill:#ffffff; font-size:13px; font-weight:600; }
+    .lbl   { font-size:13px; fill:#1c2733; font-weight:600; }
+    .note  { font-size:12.5px; fill:#4a5b6b; }
+    .wlbl  { font-size:11.5px; fill:#33404d; font-weight:600; }
+    .rbox  { fill:#fdf3d8; stroke:#c99a2e; stroke-width:1.5; }
+    .rlbl  { font-size:11.5px; fill:#7a5a10; font-weight:700; }
+    .divbox{ fill:#eae3fb; stroke:#8e4ec6; stroke-width:1.5; stroke-dasharray:4 3; }
+    .dlbl  { font-size:11.5px; fill:#5b2a8c; font-weight:700; }
+  </style>
+
+  <!-- ================= HEADER ================= -->
+  <rect class="panel" x="20" y="20" width="1100" height="230" rx="14"/>
+  <text class="title" x="44" y="56">Mallki Sapan — Circuito de monitoreo hidropónico (ESP32, Opción A)</text>
+  <text class="sub"   x="44" y="80">pH · temperatura del agua · nivel del tanque · EC (nutrientes) + control de bomba. Todos los GND en común.</text>
+
+  <!-- Pin assignment table -->
+  <text class="lbl" x="44" y="112">Asignación de pines (ESP32 DevKit):</text>
+  <text class="note" x="44" y="134">GPIO34 → pH (Po, vía divisor)</text>
+  <text class="note" x="44" y="154">GPIO35 → EC / TDS (Ao, directo)</text>
+  <text class="note" x="44" y="174">GPIO4  → DS18B20 temp. agua (DQ, pull-up 4.7k)</text>
+  <text class="note" x="380" y="134">GPIO5  → Ultrasónico TRIG</text>
+  <text class="note" x="380" y="154">GPIO18 → Ultrasónico ECHO (vía divisor)</text>
+  <text class="note" x="380" y="174">GPIO13 → Relé bomba (IN)</text>
+  <text class="note" x="700" y="134">VIN/5V → pH, EC, ultrasónico, relé</text>
+  <text class="note" x="700" y="154">3V3    → DS18B20</text>
+  <text class="note" x="700" y="174">GND    → común a TODO (imprescindible)</text>
+
+  <!-- Legend -->
+  <line x1="44" y1="200" x2="74" y2="200" stroke="#e5484d" stroke-width="4"/><text class="note" x="80" y="204">5V</text>
+  <line x1="120" y1="200" x2="150" y2="200" stroke="#f5a623" stroke-width="4"/><text class="note" x="156" y="204">3V3</text>
+  <line x1="205" y1="200" x2="235" y2="200" stroke="#333" stroke-width="4"/><text class="note" x="241" y="204">GND</text>
+  <line x1="300" y1="200" x2="330" y2="200" stroke="#8e4ec6" stroke-width="4"/><text class="note" x="336" y="204">señal analógica</text>
+  <line x1="450" y1="200" x2="480" y2="200" stroke="#0090ff" stroke-width="4"/><text class="note" x="486" y="204">señal digital</text>
+  <line x1="590" y1="200" x2="620" y2="200" stroke="#e93d82" stroke-width="4"/><text class="note" x="626" y="204">control relé</text>
+  <rect class="divbox" x="720" y="193" width="26" height="14"/><text class="note" x="752" y="204">divisor 5V→3.3V</text>
+  <rect class="rbox" x="900" y="193" width="26" height="14"/><text class="note" x="932" y="204">resistencia</text>
+
+  <!-- ================= PANEL 1: pH ================= -->
+  <rect class="panel" x="20" y="270" width="1100" height="210" rx="14"/>
+  <text class="title" x="44" y="302" font-size="17">1 · pH — módulo PH-4502C (alimentar a 5V)</text>
+  <!-- MCU stub -->
+  <rect class="mcu" x="70" y="320" width="150" height="130" rx="8"/>
+  <text class="white" x="145" y="345" text-anchor="middle">ESP32</text>
+  <text class="white" x="212" y="372" text-anchor="end">5V</text>
+  <text class="white" x="212" y="405" text-anchor="end">GND</text>
+  <text class="white" x="212" y="438" text-anchor="end">GPIO34</text>
+  <!-- Sensor -->
+  <rect class="mod" x="800" y="320" width="270" height="130" rx="8"/>
+  <text class="lbl" x="935" y="345" text-anchor="middle">Sonda pH + PH-4502C</text>
+  <text class="lbl" x="812" y="372">V+</text>
+  <text class="lbl" x="812" y="405">G</text>
+  <text class="lbl" x="812" y="438">Po</text>
+  <!-- wires -->
+  <line x1="220" y1="368" x2="800" y2="368" stroke="#e5484d" stroke-width="2.5"/>
+  <line x1="220" y1="401" x2="800" y2="401" stroke="#333" stroke-width="2.5"/>
+  <!-- Po -> divisor -> GPIO34 -->
+  <line x1="770" y1="434" x2="620" y2="434" stroke="#8e4ec6" stroke-width="2.5"/>
+  <rect class="divbox" x="470" y="420" width="150" height="28" rx="6"/>
+  <text class="dlbl" x="545" y="438" text-anchor="middle">Divisor 10k/20k</text>
+  <line x1="470" y1="434" x2="220" y2="434" stroke="#8e4ec6" stroke-width="2.5"/>
+  <text class="note" x="44" y="470">En Arduino Uno: Po → A0 directo (5V, sin divisor). En ESP32: R1=10k en serie desde Po + R2=20k a GND → nodo a GPIO34. Calibrar con buffer pH 4.0 y 7.0.</text>
+
+  <!-- ================= PANEL 2: EC ================= -->
+  <rect class="panel" x="20" y="500" width="1100" height="200" rx="14"/>
+  <text class="title" x="44" y="532" font-size="17">2 · EC / nutrientes — sonda TDS analógica (DFRobot Gravity, 5V)</text>
+  <rect class="mcu" x="70" y="550" width="150" height="120" rx="8"/>
+  <text class="white" x="145" y="575" text-anchor="middle">ESP32</text>
+  <text class="white" x="212" y="600" text-anchor="end">5V</text>
+  <text class="white" x="212" y="632" text-anchor="end">GND</text>
+  <text class="white" x="212" y="662" text-anchor="end">GPIO35</text>
+  <rect class="mod" x="800" y="550" width="270" height="120" rx="8"/>
+  <text class="lbl" x="935" y="575" text-anchor="middle">Sonda EC / módulo TDS</text>
+  <text class="lbl" x="812" y="600">VCC</text>
+  <text class="lbl" x="812" y="632">GND</text>
+  <text class="lbl" x="812" y="662">Ao</text>
+  <line x1="220" y1="596" x2="800" y2="596" stroke="#e5484d" stroke-width="2.5"/>
+  <line x1="220" y1="628" x2="800" y2="628" stroke="#333" stroke-width="2.5"/>
+  <line x1="220" y1="658" x2="800" y2="658" stroke="#8e4ec6" stroke-width="2.5"/>
+  <text class="note" x="44" y="692">Salida analógica &lt; 2.5V → entra directa al ADC del ESP32 (sin divisor). Compensación por temperatura del agua (la hace el firmware). Mantener sonda pH y EC separadas para no interferir.</text>
+
+  <!-- ================= PANEL 3: DS18B20 ================= -->
+  <rect class="panel" x="20" y="720" width="1100" height="210" rx="14"/>
+  <text class="title" x="44" y="752" font-size="17">3 · Temperatura del agua — DS18B20 sumergible (3.3V, pull-up 4.7k)</text>
+  <rect class="mcu" x="70" y="770" width="150" height="130" rx="8"/>
+  <text class="white" x="145" y="795" text-anchor="middle">ESP32</text>
+  <text class="white" x="212" y="822" text-anchor="end">3V3</text>
+  <text class="white" x="212" y="855" text-anchor="end">GND</text>
+  <text class="white" x="212" y="888" text-anchor="end">GPIO4</text>
+  <rect class="mod" x="800" y="770" width="270" height="130" rx="8"/>
+  <text class="lbl" x="935" y="795" text-anchor="middle">DS18B20 (sonda inox)</text>
+  <text class="lbl" x="812" y="822">VDD (rojo)</text>
+  <text class="lbl" x="812" y="855">GND (negro)</text>
+  <text class="lbl" x="812" y="888">DQ (amarillo)</text>
+  <!-- 3V3 wire (orange) -->
+  <line x1="220" y1="818" x2="800" y2="818" stroke="#f5a623" stroke-width="2.5"/>
+  <line x1="220" y1="851" x2="800" y2="851" stroke="#333" stroke-width="2.5"/>
+  <!-- DQ (green) -->
+  <line x1="220" y1="884" x2="800" y2="884" stroke="#30a46c" stroke-width="2.5"/>
+  <!-- pull-up: node on DQ at x=560 up to 3V3 wire -->
+  <circle cx="560" cy="884" r="4" fill="#30a46c"/>
+  <rect class="rbox" x="548" y="836" width="24" height="34" rx="4"/>
+  <text class="rlbl" x="583" y="857">4.7k</text>
+  <line x1="560" y1="884" x2="560" y2="870" stroke="#30a46c" stroke-width="2.5"/>
+  <line x1="560" y1="836" x2="560" y2="818" stroke="#30a46c" stroke-width="2.5"/>
+  <circle cx="560" cy="818" r="4" fill="#f5a623"/>
+  <text class="note" x="44" y="920">Resistencia de 4.7kΩ entre DQ y VDD (obligatoria en OneWire). Sellar la unión del cable fuera del agua; sumergir sólo la punta metálica.</text>
+
+  <!-- ================= PANEL 4: Ultrasónico ================= -->
+  <rect class="panel" x="20" y="950" width="1100" height="250" rx="14"/>
+  <text class="title" x="44" y="982" font-size="17">4 · Nivel del tanque — ultrasónico JSN-SR04T / HC-SR04 (5V)</text>
+  <rect class="mcu" x="70" y="1000" width="150" height="170" rx="8"/>
+  <text class="white" x="145" y="1025" text-anchor="middle">ESP32</text>
+  <text class="white" x="212" y="1052" text-anchor="end">5V</text>
+  <text class="white" x="212" y="1085" text-anchor="end">GND</text>
+  <text class="white" x="212" y="1118" text-anchor="end">GPIO5</text>
+  <text class="white" x="212" y="1151" text-anchor="end">GPIO18</text>
+  <rect class="mod" x="800" y="1000" width="270" height="170" rx="8"/>
+  <text class="lbl" x="935" y="1025" text-anchor="middle">Ultrasónico (tapa del tanque)</text>
+  <text class="lbl" x="812" y="1052">VCC</text>
+  <text class="lbl" x="812" y="1085">GND</text>
+  <text class="lbl" x="812" y="1118">TRIG</text>
+  <text class="lbl" x="812" y="1151">ECHO</text>
+  <line x1="220" y1="1048" x2="800" y2="1048" stroke="#e5484d" stroke-width="2.5"/>
+  <line x1="220" y1="1081" x2="800" y2="1081" stroke="#333" stroke-width="2.5"/>
+  <!-- Trig direct (blue) -->
+  <line x1="220" y1="1114" x2="800" y2="1114" stroke="#0090ff" stroke-width="2.5"/>
+  <!-- Echo via divisor (blue) -->
+  <line x1="770" y1="1147" x2="620" y2="1147" stroke="#0090ff" stroke-width="2.5"/>
+  <rect class="divbox" x="470" y="1133" width="150" height="28" rx="6"/>
+  <text class="dlbl" x="545" y="1151" text-anchor="middle">Divisor 1k/2k</text>
+  <line x1="470" y1="1147" x2="220" y2="1147" stroke="#0090ff" stroke-width="2.5"/>
+  <text class="note" x="44" y="1176">ECHO es salida 5V → en ESP32 va con divisor (R1=1k en serie + R2=2k a GND) → GPIO18. En Arduino Uno: ECHO → D6 directo.</text>
+  <text class="note" x="44" y="1194">Montar el sensor fijo en la tapa, apuntando al agua; el firmware convierte distancia → % de nivel.</text>
+
+  <!-- ================= PANEL 5: Relé + bomba ================= -->
+  <rect class="panel" x="20" y="1220" width="1100" height="320" rx="14"/>
+  <text class="title" x="44" y="1252" font-size="17">5 · Control de bomba — módulo relé (baja tensión) + bomba (fuente aparte)</text>
+  <rect class="mcu" x="70" y="1272" width="150" height="120" rx="8"/>
+  <text class="white" x="145" y="1297" text-anchor="middle">ESP32</text>
+  <text class="white" x="212" y="1322" text-anchor="end">5V</text>
+  <text class="white" x="212" y="1354" text-anchor="end">GND</text>
+  <text class="white" x="212" y="1384" text-anchor="end">GPIO13</text>
+  <!-- Relay module -->
+  <rect class="mod" x="470" y="1272" width="230" height="120" rx="8"/>
+  <text class="lbl" x="585" y="1297" text-anchor="middle">Módulo relé (opto)</text>
+  <text class="lbl" x="482" y="1322">VCC</text>
+  <text class="lbl" x="482" y="1354">GND</text>
+  <text class="lbl" x="482" y="1384">IN</text>
+  <text class="lbl" x="690" y="1322" text-anchor="end">COM</text>
+  <text class="lbl" x="690" y="1354" text-anchor="end">NO</text>
+  <line x1="220" y1="1318" x2="470" y2="1318" stroke="#e5484d" stroke-width="2.5"/>
+  <line x1="220" y1="1350" x2="470" y2="1350" stroke="#333" stroke-width="2.5"/>
+  <line x1="220" y1="1380" x2="470" y2="1380" stroke="#e93d82" stroke-width="2.5"/>
+  <!-- Pump + supply -->
+  <rect class="pumpbox" x="820" y="1272" width="250" height="120" rx="8"/>
+  <text class="lbl" x="945" y="1300" text-anchor="middle" fill="#b02128">Bomba + fuente independiente</text>
+  <text class="note" x="836" y="1326">La bomba NO se alimenta del ESP32.</text>
+  <text class="note" x="836" y="1346">Su corriente pasa por COM–NO del relé,</text>
+  <text class="note" x="836" y="1366">con su propia fuente (12V DC o 220V).</text>
+  <!-- relay to pump wiring -->
+  <line x1="700" y1="1318" x2="820" y2="1318" stroke="#7a5a10" stroke-width="2.5"/>
+  <line x1="700" y1="1350" x2="760" y2="1350" stroke="#7a5a10" stroke-width="2.5"/>
+  <line x1="760" y1="1350" x2="760" y2="1380" stroke="#7a5a10" stroke-width="2.5"/>
+  <line x1="760" y1="1380" x2="820" y2="1380" stroke="#7a5a10" stroke-width="2.5"/>
+  <text class="note" x="44" y="1430" fill="#b02128" font-weight="700">⚠ Seguridad: si la bomba es de 220V, esa parte va aislada y en caja; no se toca energizada. Usar relé de estado sólido o mecánico con la separación adecuada.</text>
+  <text class="note" x="44" y="1455">Lógica en el firmware: ciclos ON/OFF (NFT) con corte automático si el nivel &lt; 15% o el pH sale de rango seguro (regla RN-01). Cada riego se registra en /api/irrigation/auto.</text>
+  <text class="note" x="44" y="1480">Para bomba 12V DC podés usar en vez del relé un MOSFET IRLZ44N con diodo flyback en paralelo a la bomba.</text>
+  <text class="note" x="44" y="1512" font-weight="700" fill="#1c2733">Recordá: una sola masa (GND) uniendo ESP32, todos los sensores, el módulo relé y la fuente de 5V. Sin GND común las lecturas analógicas fallan.</text>
+</svg>

@@ -1,11 +1,28 @@
+export type SensorType =
+  | 'humidity_soil'
+  | 'humidity_air'
+  | 'temperature'
+  | 'light'
+  | 'ph'
+  | 'water_level'
+  | 'ec';
+
 export interface Sensor {
   id: string;
   name: string;
-  type: 'humidity_soil' | 'humidity_air' | 'temperature' | 'light' | 'ph';
+  type: SensorType;
   value: number;
   unit: string;
   status: 'normal' | 'warning' | 'critical';
   lastUpdate: string;
+}
+
+export interface Calibration {
+  id: string;
+  key: 'ph' | 'ec';
+  params: Record<string, number>;
+  note?: string;
+  updatedAt: string;
 }
 
 export interface Crop {
