@@ -14,6 +14,9 @@ import {
   MessageSquare,
   Send,
   Loader2,
+  Sparkles,
+  Leaf,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface Props {
@@ -138,6 +141,17 @@ export function PhotoModal({
   }
 
   const titulo = photo.title ?? photo.cropName ?? 'Sin título';
+  const analisis = photo.aiAnalysis;
+
+  // Qué mostrar cuando todavía no hay análisis. `done` sin análisis no debería
+  // pasar, así que no tiene entrada: cae en null y no se muestra nada.
+  const ESTADO_ANALISIS: Partial<Record<NonNullable<Photo['analysisStatus']>, string>> = {
+    pending: 'En cola para analizar',
+    processing: 'Analizando…',
+    failed: 'No se pudo analizar',
+    skipped: 'Sin analizar',
+  };
+  const estadoTexto = photo.analysisStatus ? ESTADO_ANALISIS[photo.analysisStatus] : undefined;
 
   return (
     <div
@@ -251,6 +265,79 @@ export function PhotoModal({
             <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
               {error}
             </p>
+          )}
+
+          {/* Análisis de IA */}
+          {(analisis || estadoTexto) && (
+            <div className="max-h-64 flex-none overflow-y-auto border-b border-gray-100 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <Sparkles className="h-4 w-4 text-purple-500" />
+                Análisis de IA
+              </div>
+
+              {analisis ? (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Salud</span>
+                      <span className="font-semibold text-gray-900">
+                        {analisis.healthScore}%
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className={cn(
+                          'h-full rounded-full',
+                          analisis.healthScore >= 90
+                            ? 'bg-green-500'
+                            : analisis.healthScore >= 75
+                              ? 'bg-yellow-500'
+                              : analisis.healthScore >= 50
+                                ? 'bg-orange-500'
+                                : 'bg-red-500'
+                        )}
+                        style={{ width: `${analisis.healthScore}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2">
+                    <Leaf className="h-4 w-4 flex-none text-blue-500" />
+                    <span className="text-sm text-blue-800">{analisis.growthStage}</span>
+                  </div>
+
+                  {analisis.issues.length > 0 && (
+                    <ul className="space-y-1">
+                      {analisis.issues.map((issue, i) => (
+                        <li key={i} className="flex gap-2 text-sm text-amber-800">
+                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-none text-amber-500" />
+                          {issue}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {analisis.recommendations.length > 0 && (
+                    <ul className="space-y-1 border-t border-gray-100 pt-2">
+                      {analisis.recommendations.map((rec, i) => (
+                        <li key={i} className="text-sm text-gray-600">
+                          · {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-gray-500">
+                  {estadoTexto}
+                  {photo.analysisError && (
+                    <span className="mt-1 block text-xs text-gray-400">
+                      {photo.analysisError}
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
           )}
 
           {/* Comentarios */}

@@ -85,6 +85,8 @@ export interface Photo {
   height?: number | null;
   sizeBytes?: number | null;
   analysisStatus?: 'pending' | 'processing' | 'done' | 'failed' | 'skipped';
+  // Por qué falló o se descartó el análisis. Null cuando salió bien.
+  analysisError?: string | null;
   // Editable desde la web.
   title?: string | null;
   comments?: PhotoComment[];

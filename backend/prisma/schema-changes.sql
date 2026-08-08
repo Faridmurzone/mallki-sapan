@@ -22,3 +22,7 @@ CREATE INDEX "photo_comments_photoId_createdAt_idx" ON "photo_comments"("photoId
 -- AddForeignKey
 ALTER TABLE "photo_comments" ADD CONSTRAINT "photo_comments_photoId_fkey" FOREIGN KEY ("photoId") REFERENCES "photos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+
+-- AlterTable: análisis de fotos con IA
+ALTER TABLE "photos" ADD COLUMN     "analysisStartedAt" TIMESTAMP(3);
+ALTER TABLE "photos" ADD COLUMN     "analysisError" TEXT;

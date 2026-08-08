@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../services/database.js';
 import { storage } from '../services/storage.js';
+import { claimNextPhotoForAnalysis, DEFAULT_STALE_AFTER_SEC } from '../services/photo-analysis.js';
 import { AppError } from '../middleware/error-handler.js';
 
 const router = Router();
@@ -25,15 +26,30 @@ const createCommentSchema = z.object({
 });
 
 const createAnalysisSchema = z.object({
-  healthScore: z.number().min(0).max(100),
-  growthStage: z.string(),
+  // Entero a propósito: la columna es Int y un 87.5 rompería el insert.
+  healthScore: z.number().int().min(0).max(100),
+  growthStage: z.string().trim().min(1).max(80),
   issues: z.array(z.string()).default([]),
   recommendations: z.array(z.string()).default([]),
 });
 
+const claimSchema = z.object({
+  staleAfterSec: z.number().int().positive().max(86400).optional(),
+});
+
+const discardAnalysisSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+  // `failed` es un error del análisis; `skipped` es una foto que no daba para
+  // analizar (de noche, movida, apuntando a la pared). Distinguirlos evita
+  // leer como fallas del sistema lo que es sólo una foto sin plantas.
+  status: z.enum(['failed', 'skipped']).default('failed'),
+});
+
 // GET /api/photos - Obtener todas las fotos
+const ESTADOS_ANALISIS = ['pending', 'processing', 'done', 'failed', 'skipped'] as const;
+
 router.get('/', async (req, res) => {
-  const { cropId, cameraId, source } = req.query;
+  const { cropId, cameraId, source, analysisStatus, limit } = req.query;
 
   const where: Record<string, unknown> = {};
   if (cropId) {
@@ -45,6 +61,14 @@ router.get('/', async (req, res) => {
   if (source === 'camera' || source === 'manual') {
     where.source = source;
   }
+  if (ESTADOS_ANALISIS.includes(analysisStatus as (typeof ESTADOS_ANALISIS)[number])) {
+    where.analysisStatus = analysisStatus;
+  }
+
+  // Sin tope explícito devolvemos todo, que es lo que espera la galería. Con
+  // ?limit, un valor fuera de rango se ignora en vez de romper la request.
+  const tope = Number(limit);
+  const take = Number.isInteger(tope) && tope > 0 ? Math.min(tope, 500) : undefined;
 
   const photos = await prisma.photo.findMany({
     where,
@@ -55,6 +79,7 @@ router.get('/', async (req, res) => {
       analysis: true,
     },
     orderBy: { capturedAt: 'desc' },
+    take,
   });
 
   // Transformar respuesta. cropName puede ser null: las fotos ingestadas por
@@ -64,6 +89,24 @@ router.get('/', async (req, res) => {
     cropName: photo.crop?.name ?? null,
     aiAnalysis: photo.analysis,
   }));
+
+  res.json(result);
+});
+
+// POST /api/photos/analysis/claim - El worker de IA toma la próxima foto.
+//
+// Va antes que /:id: Express resuelve por orden de registro y si no,
+// "analysis" entraría como id de foto.
+router.post('/analysis/claim', async (req, res) => {
+  const { staleAfterSec } = claimSchema.parse(req.body ?? {});
+
+  const result = await claimNextPhotoForAnalysis(staleAfterSec ?? DEFAULT_STALE_AFTER_SEC);
+
+  // 204 y no 404: "no hay nada para analizar" es el caso normal del worker,
+  // no un error que valga la pena loguear cada minuto.
+  if (!result) {
+    return res.status(204).send();
+  }
 
   res.json(result);
 });
@@ -251,10 +294,29 @@ router.post('/:id/analysis', async (req, res) => {
 
   await prisma.photo.update({
     where: { id: req.params.id },
-    data: { analysisStatus: 'done' },
+    data: { analysisStatus: 'done', analysisError: null },
   });
 
   res.status(201).json(analysis);
+});
+
+// POST /api/photos/:id/analysis/discard - El worker no produjo un análisis.
+//
+// Sin esto, una foto que rompe el análisis queda en `processing` hasta que
+// vence el plazo de stale y se la vuelve a tomar, una y otra vez.
+router.post('/:id/analysis/discard', async (req, res) => {
+  const { reason, status } = discardAnalysisSchema.parse(req.body ?? {});
+
+  const { count } = await prisma.photo.updateMany({
+    where: { id: req.params.id },
+    data: { analysisStatus: status, analysisError: reason ?? null },
+  });
+
+  if (count === 0) {
+    throw new AppError(404, 'Foto no encontrada');
+  }
+
+  res.status(204).send();
 });
 
 // DELETE /api/photos/:id - Eliminar foto

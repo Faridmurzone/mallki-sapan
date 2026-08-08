@@ -197,6 +197,11 @@ model Photo {
   dedupeKey String? @unique
 
   analysisStatus AnalysisStatus @default(pending)
+  // Cuándo un worker tomó la foto para analizarla. Sirve para recuperar las
+  // que quedaron en `processing` porque el worker se murió a mitad de camino.
+  analysisStartedAt DateTime?
+  // Motivo del último fallo, para poder diagnosticar sin mirar los logs.
+  analysisError     String?
 
   // Título que se le pone desde la web. Las fotos de cámara llegan sin uno.
   title String?
