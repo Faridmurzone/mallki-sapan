@@ -4,14 +4,14 @@
   "description": "Backend API para Mallki Sapan - Sistema de Jardín Inteligente",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node --env-file-if-exists=.env dist/server.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "tsx prisma/seed.ts",
-    "db:seed:hidro": "tsx prisma/seed-hidroponia.ts",
+    "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
+    "db:seed:hidro": "tsx --env-file-if-exists=.env prisma/seed-hidroponia.ts",
     "db:studio": "prisma studio",
     "test": "vitest run",
     "test:watch": "vitest"

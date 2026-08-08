@@ -54,10 +54,18 @@ export interface Alert {
 export interface Photo {
   id: string;
   url: string;
-  thumbnailUrl: string;
-  cropId: string;
-  cropName: string;
+  thumbnailUrl: string | null;
+  // Null en las fotos que sube una cámara sin cultivo asociado.
+  cropId: string | null;
+  cropName: string | null;
   capturedAt: string;
+  // Sólo en fotos ingestadas por cámara.
+  source?: 'manual' | 'camera';
+  cameraId?: string | null;
+  width?: number | null;
+  height?: number | null;
+  sizeBytes?: number | null;
+  analysisStatus?: 'pending' | 'processing' | 'done' | 'failed' | 'skipped';
   aiAnalysis?: {
     healthScore: number;
     growthStage: string;
