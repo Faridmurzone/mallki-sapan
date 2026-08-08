@@ -22,11 +22,17 @@ const createAnalysisSchema = z.object({
 
 // GET /api/photos - Obtener todas las fotos
 router.get('/', async (req, res) => {
-  const { cropId } = req.query;
+  const { cropId, cameraId, source } = req.query;
 
   const where: Record<string, unknown> = {};
   if (cropId) {
     where.cropId = cropId;
+  }
+  if (cameraId) {
+    where.cameraId = cameraId;
+  }
+  if (source === 'camera' || source === 'manual') {
+    where.source = source;
   }
 
   const photos = await prisma.photo.findMany({
@@ -40,10 +46,11 @@ router.get('/', async (req, res) => {
     orderBy: { capturedAt: 'desc' },
   });
 
-  // Transformar respuesta
+  // Transformar respuesta. cropName puede ser null: las fotos ingestadas por
+  // una cámara sin cultivo asociado no tienen crop.
   const result = photos.map(photo => ({
     ...photo,
-    cropName: photo.crop.name,
+    cropName: photo.crop?.name ?? null,
     aiAnalysis: photo.analysis,
   }));
 
@@ -66,7 +73,7 @@ router.get('/:id', async (req, res) => {
 
   res.json({
     ...photo,
-    cropName: photo.crop.name,
+    cropName: photo.crop?.name ?? null,
     aiAnalysis: photo.analysis,
   });
 });
@@ -98,7 +105,7 @@ router.post('/', async (req, res) => {
 
   res.status(201).json({
     ...photo,
-    cropName: photo.crop.name,
+    cropName: photo.crop?.name ?? null,
   });
 });
 
@@ -141,12 +148,15 @@ router.post('/:id/analysis', async (req, res) => {
       include: { crop: true },
     });
 
+    const dondeSeDetecto = photoWithCrop?.crop?.name
+      ?? (photoWithCrop?.cameraId ? `la cámara ${photoWithCrop.cameraId}` : 'la huerta');
+
     for (const issue of data.issues) {
       await prisma.alert.create({
         data: {
           type: 'growth',
           severity: data.healthScore < 50 ? 'high' : data.healthScore < 70 ? 'medium' : 'low',
-          title: `Problema detectado en ${photoWithCrop?.crop.name}`,
+          title: `Problema detectado en ${dondeSeDetecto}`,
           message: issue,
           cropId: photoWithCrop?.cropId,
           aiRecommendation: data.recommendations.join('. '),
@@ -154,6 +164,11 @@ router.post('/:id/analysis', async (req, res) => {
       });
     }
   }
+
+  await prisma.photo.update({
+    where: { id: req.params.id },
+    data: { analysisStatus: 'done' },
+  });
 
   res.status(201).json(analysis);
 });

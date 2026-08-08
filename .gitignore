@@ -1,0 +1,18 @@
+# Secretos de firmware: credenciales de WiFi y endpoint del backend.
+# El repo sólo lleva secrets.example.h con placeholders.
+firmware/**/secrets.h
+
+# Salidas de compilación de Arduino
+firmware/**/build/
+*.bin
+*.elf
+
+# Almacenamiento local de imágenes ingestadas (driver `local`)
+backend/storage/
+
+# Artefactos sueltos
+lista.pdf
+
+# Sistema
+.DS_Store
+Thumbs.db

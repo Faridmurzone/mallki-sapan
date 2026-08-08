@@ -85,6 +85,7 @@ model Crop {
   sensors CropSensor[]
   alerts  Alert[]
   photos  Photo[]
+  cameras Camera[]
 
   @@map("crops")
 }
@@ -143,18 +144,67 @@ model Alert {
 // FOTOS Y ANALISIS IA
 // ============================================
 
+enum PhotoSource {
+  manual
+  camera
+}
+
+enum AnalysisStatus {
+  pending
+  processing
+  done
+  failed
+  skipped
+}
+
 model Photo {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   url          String
   thumbnailUrl String?
-  cropId       String
-  capturedAt   DateTime @default(now())
-  createdAt    DateTime @default(now())
+  // Opcional desde que existe la ingesta por cámara: una cámara puede estar
+  // apuntando a la huerta sin estar asociada a un cultivo concreto.
+  cropId       String?
+  capturedAt   DateTime    @default(now())
+  createdAt    DateTime    @default(now())
 
-  crop     Crop          @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  source PhotoSource @default(manual)
+
+  // --- sólo para fotos ingestadas por cámara ---
+  cameraId    String?
+  storageKey  String? @unique // ruta del objeto en el storage
+  sizeBytes   Int?
+  width       Int?
+  height      Int?
+  contentHash String? // sha256 del JPEG, en hex
+
+  // Clave de deduplicación: hace idempotente el POST de ingesta ante reintentos.
+  // Ver buildDedupeKey() en src/services/ingest.ts.
+  dedupeKey String? @unique
+
+  analysisStatus AnalysisStatus @default(pending)
+
+  crop     Crop?          @relation(fields: [cropId], references: [id], onDelete: SetNull)
+  camera   Camera?        @relation(fields: [cameraId], references: [id], onDelete: SetNull)
   analysis PhotoAnalysis?
 
+  @@index([cameraId, capturedAt])
+  @@index([analysisStatus])
   @@map("photos")
+}
+
+model Camera {
+  id        String   @id // identificador del dispositivo, ej. "esp32-cam-01"
+  name      String?
+  cropId    String?
+  isActive  Boolean  @default(true)
+  lastSeenAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  crop   Crop?   @relation(fields: [cropId], references: [id], onDelete: SetNull)
+  photos Photo[]
+
+  @@map("cameras")
 }
 
 model PhotoAnalysis {

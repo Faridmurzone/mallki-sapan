@@ -154,7 +154,7 @@ router.get('/recent-activity', async (_req, res) => {
     })),
     photos: recentPhotos.map(p => ({
       ...p,
-      cropName: p.crop.name,
+      cropName: p.crop?.name ?? null,
       aiAnalysis: p.analysis,
     })),
   });

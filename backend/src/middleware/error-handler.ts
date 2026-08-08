@@ -35,6 +35,24 @@ export function errorHandler(
     });
   }
 
+  // Errores de body-parser: los tira express.raw/json antes de llegar a la
+  // ruta y traen su propio status. Sin esto, un JPEG demasiado grande de la
+  // cámara devolvía 500 y el dispositivo lo reintentaba para siempre.
+  const bodyParserError = err as { status?: number; statusCode?: number; type?: string };
+  const parserStatus = bodyParserError.status ?? bodyParserError.statusCode;
+
+  if (typeof parserStatus === 'number' && parserStatus >= 400 && parserStatus < 500) {
+    const message =
+      bodyParserError.type === 'entity.too.large'
+        ? 'La imagen supera el tamaño máximo permitido'
+        : 'Cuerpo del pedido inválido';
+
+    return res.status(parserStatus).json({
+      error: message,
+      statusCode: parserStatus,
+    });
+  }
+
   // Prisma errors
   if (err.name === 'PrismaClientKnownRequestError') {
     return res.status(400).json({
