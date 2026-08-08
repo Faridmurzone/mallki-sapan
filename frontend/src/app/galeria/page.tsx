@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { photos } from '@/lib/mock-data';
+import { apiGet } from '@/lib/api';
+import type { Photo } from '@/types';
 import { formatDateTime, getHealthColor, cn } from '@/lib/utils';
 import {
   Camera,
@@ -19,8 +20,30 @@ import {
 } from 'lucide-react';
 
 export default function GaleriaPage() {
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
+
+  const cargar = useCallback(async () => {
+    try {
+      setPhotos(await apiGet<Photo[]>('/api/photos'));
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudieron cargar las fotos');
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  // La cámara sube una foto por minuto: refrescamos con esa cadencia para que
+  // la galería se mantenga al día sin recargar la página.
+  useEffect(() => {
+    cargar();
+    const id = setInterval(cargar, 60_000);
+    return () => clearInterval(id);
+  }, [cargar]);
 
   const activePhoto = selectedPhoto ? photos.find(p => p.id === selectedPhoto) : null;
   const lightboxPhotoData = lightboxPhoto ? photos.find(p => p.id === lightboxPhoto) : null;
@@ -43,11 +66,14 @@ export default function GaleriaPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Galería</h1>
-          <p className="text-gray-500">Fotos de tus cultivos con análisis de IA</p>
+          <p className="text-gray-500">Fotos que suben las cámaras, con análisis de IA</p>
         </div>
-        <button className="flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2 text-white font-medium hover:bg-purple-600 transition-colors">
+        <button
+          onClick={cargar}
+          className="flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2 text-white font-medium hover:bg-purple-600 transition-colors"
+        >
           <Camera className="h-4 w-4" />
-          Capturar Foto
+          Actualizar
         </button>
       </div>
 
@@ -62,6 +88,24 @@ export default function GaleriaPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {cargando && (
+                <p className="py-8 text-center text-gray-500">Cargando fotos…</p>
+              )}
+
+              {error && !cargando && (
+                <p className="py-8 text-center text-red-600">{error}</p>
+              )}
+
+              {!cargando && !error && photos.length === 0 && (
+                <div className="py-12 text-center">
+                  <ImageIcon className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+                  <p className="text-gray-500">Todavía no llegó ninguna foto.</p>
+                  <p className="mt-1 text-sm text-gray-400">
+                    Las cámaras suben una imagen cada pocos minutos.
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {photos.map((photo) => (
                   <div
@@ -74,10 +118,13 @@ export default function GaleriaPage() {
                         : 'border-transparent hover:border-green-300'
                     )}
                   >
-                    {/* Placeholder for actual image */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Leaf className="h-12 w-12 text-green-400" />
-                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.url}
+                      alt={photo.cropName ?? 'Foto de la huerta'}
+                      loading="lazy"
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
 
                     {/* Overlay on hover */}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
@@ -106,7 +153,7 @@ export default function GaleriaPage() {
 
                     {/* Crop name */}
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                      <p className="text-white text-sm font-medium truncate">{photo.cropName}</p>
+                      <p className="text-white text-sm font-medium truncate">{photo.cropName ?? 'Sin cultivo asignado'}</p>
                       <p className="text-white/70 text-xs">
                         {new Date(photo.capturedAt).toLocaleDateString('es-AR')}
                       </p>
@@ -129,7 +176,7 @@ export default function GaleriaPage() {
                   </div>
                   <div>
                     <CardTitle className="text-white">Análisis IA</CardTitle>
-                    <p className="text-purple-100 text-sm">{activePhoto.cropName}</p>
+                    <p className="text-purple-100 text-sm">{activePhoto.cropName ?? 'Sin cultivo asignado'}</p>
                   </div>
                 </div>
               </CardHeader>
@@ -261,9 +308,14 @@ export default function GaleriaPage() {
 
           <div
             onClick={(e) => e.stopPropagation()}
-            className="max-w-4xl max-h-[80vh] rounded-2xl overflow-hidden bg-gradient-to-br from-green-200 to-green-300 aspect-video flex items-center justify-center"
+            className="max-w-4xl max-h-[80vh] rounded-2xl overflow-hidden bg-black flex items-center justify-center"
           >
-            <Leaf className="h-32 w-32 text-green-500" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxPhotoData.url}
+              alt={lightboxPhotoData.cropName ?? 'Foto de la huerta'}
+              className="max-h-[80vh] w-auto object-contain"
+            />
           </div>
 
           <button
@@ -278,7 +330,7 @@ export default function GaleriaPage() {
 
           {/* Photo info */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-sm rounded-xl px-6 py-3 text-white">
-            <p className="font-medium">{lightboxPhotoData.cropName}</p>
+            <p className="font-medium">{lightboxPhotoData.cropName ?? 'Sin cultivo asignado'}</p>
             <p className="text-sm text-white/70">
               {formatDateTime(lightboxPhotoData.capturedAt)}
               {lightboxPhotoData.aiAnalysis && ` • Salud: ${lightboxPhotoData.aiAnalysis.healthScore}%`}
