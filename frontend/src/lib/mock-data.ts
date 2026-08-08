@@ -55,6 +55,51 @@ export const sensors: Sensor[] = [
     status: 'normal',
     lastUpdate: '2025-01-14T10:30:00Z',
   },
+  // --- Hidroponia (solucion nutritiva en tubos PVC) ---
+  {
+    id: 'sensor-7',
+    name: 'pH Solución',
+    type: 'ph',
+    value: 6.1,
+    unit: 'pH',
+    status: 'normal',
+    lastUpdate: '2025-01-14T10:30:00Z',
+  },
+  {
+    id: 'sensor-8',
+    name: 'Temperatura del Agua',
+    type: 'temperature',
+    value: 21.4,
+    unit: '°C',
+    status: 'normal',
+    lastUpdate: '2025-01-14T10:30:00Z',
+  },
+  {
+    id: 'sensor-9',
+    name: 'Nivel del Tanque',
+    type: 'water_level',
+    value: 72,
+    unit: '%',
+    status: 'normal',
+    lastUpdate: '2025-01-14T10:30:00Z',
+  },
+  {
+    id: 'sensor-10',
+    name: 'EC / Nutrientes',
+    type: 'ec',
+    value: 1.8,
+    unit: 'mS/cm',
+    status: 'normal',
+    lastUpdate: '2025-01-14T10:30:00Z',
+  },
+];
+
+// Sensores de la solucion nutritiva (hidroponia), en orden de panel.
+export const hydroSensors: Sensor[] = [
+  sensors.find((s) => s.id === 'sensor-7')!, // pH
+  sensors.find((s) => s.id === 'sensor-8')!, // temp agua
+  sensors.find((s) => s.id === 'sensor-9')!, // nivel
+  sensors.find((s) => s.id === 'sensor-10')!, // EC
 ];
 
 export const crops: Crop[] = [

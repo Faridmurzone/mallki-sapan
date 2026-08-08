@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Salida standalone para una imagen Docker liviana (server.js autocontenido).
+  output: "standalone",
 };
 
 export default nextConfig;

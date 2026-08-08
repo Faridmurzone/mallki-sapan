@@ -1,6 +1,8 @@
 'use client';
 
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { PumpControl } from '@/components/irrigation/pump-control';
+import { ScheduleManager } from '@/components/irrigation/schedule-manager';
 import { irrigationHistory, sensors } from '@/lib/mock-data';
 import { formatDateTime, formatTime, cn } from '@/lib/utils';
 import {
@@ -62,6 +64,9 @@ export default function RiegoPage() {
           </button>
         </div>
       </div>
+
+      {/* Control de bomba en vivo (conectado al backend) */}
+      <PumpControl />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -249,12 +254,16 @@ export default function RiegoPage() {
         </div>
 
         {/* Schedule */}
-        <div>
+        <div className="space-y-6">
+          {/* Programación real (persistida en el backend) */}
+          <ScheduleManager />
+
+          {/* Ejemplos de UI (mock) */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
-                Programación
+                Programación (demo)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

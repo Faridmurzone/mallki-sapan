@@ -74,10 +74,30 @@ mallki-sapan/
 ## Estado del Desarrollo
 
 - [x] Definición de arquitectura
-- [ ] Frontend con dashboard (en progreso)
-- [ ] Motor de IA
-- [ ] Firmware Arduino
-- [ ] Integración de componentes
+- [x] Frontend con dashboard (nivel, EC, históricos en vivo, calibración, riego)
+- [x] Motor de IA (alertas + decisión de riego) — ver [`ai-engine/`](ai-engine/)
+- [x] Firmware Arduino de monitoreo (pH, temp agua, nivel, EC) — ver [`arduino/`](arduino/)
+- [x] Documentación de hardware/circuitos — ver [`docs/`](docs/)
+- [x] Riego automático (relé en firmware + scheduler en backend)
+- [ ] Integración end-to-end en hardware real (en progreso)
+
+## Puesta en marcha rápida
+
+```bash
+docker compose up --build                          # Postgres + backend + frontend + ai-engine
+docker compose exec backend npm run db:seed:hidro  # datos de prueba (sensores + 24h + alertas)
+```
+
+Frontend en http://localhost:3000 · backend en http://localhost:3001. Guía completa
+(y opción local sin Docker): [docs/puesta-en-marcha.md](docs/puesta-en-marcha.md).
+
+## Documentación
+
+- [Puesta en marcha end-to-end](docs/puesta-en-marcha.md) — Docker/local, datos de prueba y hardware real.
+- [Circuitos y cableado](docs/hardware/circuitos.md) — pH, temperatura del agua, nivel y EC para hidroponía en tubos PVC.
+- [Arquitectura y escalado](docs/arquitectura/arquitectura.md)
+- [Especificación funcional](docs/funcional/especificacion-funcional.md)
+- [Firmware (ESP32 / Arduino Uno)](arduino/)
 
 ## Autor
 

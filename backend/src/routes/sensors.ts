@@ -8,7 +8,15 @@ const router = Router();
 // Schemas de validación
 const createSensorSchema = z.object({
   name: z.string().min(1),
-  type: z.enum(['humidity_soil', 'humidity_air', 'temperature', 'light', 'ph']),
+  type: z.enum([
+    'humidity_soil',
+    'humidity_air',
+    'temperature',
+    'light',
+    'ph',
+    'water_level',
+    'ec',
+  ]),
   unit: z.string().min(1),
 });
 
@@ -103,6 +111,14 @@ router.post('/:id/readings', async (req, res) => {
   } else if (sensor.type === 'ph') {
     if (value < 5 || value > 8) status = 'critical';
     else if (value < 5.5 || value > 7.5) status = 'warning';
+  } else if (sensor.type === 'water_level') {
+    // nivel del tanque en % (100 = lleno)
+    if (value < 15) status = 'critical';
+    else if (value < 30) status = 'warning';
+  } else if (sensor.type === 'ec') {
+    // conductividad en mS/cm (concentracion de nutrientes)
+    if (value < 0.8 || value > 2.8) status = 'critical';
+    else if (value < 1.0 || value > 2.4) status = 'warning';
   }
 
   // Crear lectura y actualizar sensor

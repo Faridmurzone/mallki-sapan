@@ -1,18 +1,27 @@
-# Secretos de firmware: credenciales de WiFi y endpoint del backend.
-# El repo sólo lleva secrets.example.h con placeholders.
+# ---------------------------------------------------------------- Secretos
+# Credenciales de WiFi, endpoints y tokens de los dispositivos.
+# El repo sólo lleva los *.example.* con placeholders.
 firmware/**/secrets.h
+arduino/**/config.h
+ai-engine/.env
 
+# ---------------------------------------------------------------- Firmware
 # Salidas de compilación de Arduino
 firmware/**/build/
+arduino/**/build/
 *.bin
 *.elf
 
+# ---------------------------------------------------------------- Backend
 # Almacenamiento local de imágenes ingestadas (driver `local`)
 backend/storage/
 
-# Artefactos sueltos
-lista.pdf
+# ---------------------------------------------------------------- AI engine
+ai-engine/.venv/
+__pycache__/
+*.pyc
 
-# Sistema
+# ---------------------------------------------------------------- Varios
+lista.pdf
 .DS_Store
 Thumbs.db

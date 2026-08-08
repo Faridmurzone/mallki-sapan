@@ -2,6 +2,13 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../services/database.js';
 import { AppError } from '../middleware/error-handler.js';
+import {
+  MIN_TANK_LEVEL_PCT,
+  getLowestTankLevel,
+  runIrrigation,
+  TankTooLowError,
+  ZoneNotFoundError,
+} from '../services/irrigation.js';
 
 const router = Router();
 
@@ -212,6 +219,93 @@ router.post('/stop', async (_req, res) => {
     ...event,
     message: 'Riego detenido',
   });
+});
+
+// GET /api/irrigation/can-irrigate - Consultar si se puede regar (chequeo de nivel)
+// Lo usa el firmware/dashboard antes de bombear. No crea evento.
+router.get('/can-irrigate', async (_req, res) => {
+  const level = await getLowestTankLevel();
+  const allowed = level === null ? true : level >= MIN_TANK_LEVEL_PCT;
+
+  res.json({
+    allowed,
+    level,
+    minLevel: MIN_TANK_LEVEL_PCT,
+    reason: level === null
+      ? 'Sin sensor de nivel: no se puede verificar (se permite por defecto)'
+      : allowed
+        ? 'Nivel suficiente'
+        : `Nivel ${level}% por debajo del minimo ${MIN_TANK_LEVEL_PCT}% - bomba bloqueada`,
+  });
+});
+
+// POST /api/irrigation/auto - Riego automatico con regla de seguridad (RN-01)
+// Verifica el nivel del tanque ANTES de crear el evento. Si esta por debajo
+// del minimo responde 409 y NO riega. Usar para riego programado o por IA.
+router.post('/auto', async (req, res) => {
+  const { zoneIds, duration, trigger } = z.object({
+    zoneIds: z.array(z.string()).min(1),
+    duration: z.number().positive().default(15),
+    trigger: z.enum(['scheduled', 'ai_decision', 'manual']).default('scheduled'),
+  }).parse(req.body);
+
+  try {
+    const { event, level } = await runIrrigation({ zoneIds, duration, trigger });
+    res.status(201).json({
+      ...event,
+      tankLevel: level,
+      message: `Riego automatico (${trigger}) en ${event.zones.map(ez => ez.zone.name).join(', ')}`,
+      zones: event.zones.map(ez => ez.zone.name),
+    });
+  } catch (e) {
+    if (e instanceof TankTooLowError) throw new AppError(409, e.message);
+    if (e instanceof ZoneNotFoundError) throw new AppError(400, e.message);
+    throw e;
+  }
+});
+
+// =====================================
+// RIEGO PROGRAMADO (schedules)
+// =====================================
+
+const scheduleSchema = z.object({
+  name: z.string().min(1),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Formato HH:MM'),
+  duration: z.number().int().positive(),
+  days: z.array(z.number().int().min(0).max(6)).default([]),
+  zoneIds: z.array(z.string()).min(1),
+  enabled: z.boolean().default(true),
+});
+
+// GET /api/irrigation/schedules
+router.get('/schedules', async (_req, res) => {
+  const schedules = await prisma.irrigationSchedule.findMany({
+    orderBy: { time: 'asc' },
+  });
+  res.json(schedules);
+});
+
+// POST /api/irrigation/schedules
+router.post('/schedules', async (req, res) => {
+  const data = scheduleSchema.parse(req.body);
+  const schedule = await prisma.irrigationSchedule.create({ data });
+  res.status(201).json(schedule);
+});
+
+// PUT /api/irrigation/schedules/:id
+router.put('/schedules/:id', async (req, res) => {
+  const data = scheduleSchema.partial().parse(req.body);
+  const schedule = await prisma.irrigationSchedule.update({
+    where: { id: req.params.id },
+    data,
+  });
+  res.json(schedule);
+});
+
+// DELETE /api/irrigation/schedules/:id
+router.delete('/schedules/:id', async (req, res) => {
+  await prisma.irrigationSchedule.delete({ where: { id: req.params.id } });
+  res.status(204).send();
 });
 
 // GET /api/irrigation/stats - Estadísticas de riego

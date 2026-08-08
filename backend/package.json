@@ -11,6 +11,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:hidro": "tsx prisma/seed-hidroponia.ts",
     "db:studio": "prisma studio",
     "test": "vitest run",
     "test:watch": "vitest"

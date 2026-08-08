@@ -14,9 +14,11 @@ datasource db {
 enum SensorType {
   humidity_soil
   humidity_air
-  temperature
+  temperature       // usar tambien para temperatura del agua (hidroponia)
   light
   ph
+  water_level       // nivel del tanque en % (0-100)
+  ec                // conductividad electrica / nutrientes en mS/cm
 }
 
 enum SensorStatus {
@@ -53,6 +55,19 @@ model SensorReading {
 
   @@index([sensorId, timestamp])
   @@map("sensor_readings")
+}
+
+// Calibracion global por parametro (ej. "ph", "ec"). Los valores se
+// editan desde la web y se copian al config.h del firmware.
+model Calibration {
+  id        String   @id @default(cuid())
+  key       String   @unique // "ph" | "ec"
+  params    Json                // { voltageAt7, voltageAt4 } o { kValue }
+  note      String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("calibrations")
 }
 
 // ============================================
@@ -267,6 +282,23 @@ model IrrigationEventZone {
 
   @@unique([eventId, zoneId])
   @@map("irrigation_event_zones")
+}
+
+// Riego programado por horario. Lo ejecuta el scheduler del backend
+// (services/scheduler.ts) respetando el chequeo de nivel del tanque.
+model IrrigationSchedule {
+  id        String    @id @default(cuid())
+  name      String
+  time      String // "HH:MM" (24h, hora local del server)
+  duration  Int // minutos
+  days      Int[] // 0-6 (dom..sab); vacío = todos los días
+  zoneIds   String[] // ids de zonas a regar
+  enabled   Boolean   @default(true)
+  lastRun   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("irrigation_schedules")
 }
 
 // ============================================
