@@ -1,9 +1,27 @@
-
-# Firmware secrets (WiFi / tokens) — no subir
+# ---------------------------------------------------------------- Secretos
+# Credenciales de WiFi, endpoints y tokens de los dispositivos.
+# El repo sólo lleva los *.example.* con placeholders.
+firmware/**/secrets.h
 arduino/**/config.h
-
-# AI engine (Python)
 ai-engine/.env
+
+# ---------------------------------------------------------------- Firmware
+# Salidas de compilación de Arduino
+firmware/**/build/
+arduino/**/build/
+*.bin
+*.elf
+
+# ---------------------------------------------------------------- Backend
+# Almacenamiento local de imágenes ingestadas (driver `local`)
+backend/storage/
+
+# ---------------------------------------------------------------- AI engine
 ai-engine/.venv/
 __pycache__/
 *.pyc
+
+# ---------------------------------------------------------------- Varios
+lista.pdf
+.DS_Store
+Thumbs.db
