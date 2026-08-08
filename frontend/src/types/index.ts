@@ -51,6 +51,25 @@ export interface Alert {
   aiRecommendation?: string;
 }
 
+export interface PhotoComment {
+  id: string;
+  photoId: string;
+  body: string;
+  author: string | null;
+  createdAt: string;
+}
+
+export interface Camera {
+  id: string;
+  name: string | null;
+  cropId: string | null;
+  cropName: string | null;
+  isActive: boolean;
+  captureIntervalSec: number;
+  lastSeenAt: string | null;
+  photoCount?: number;
+}
+
 export interface Photo {
   id: string;
   url: string;
@@ -66,6 +85,9 @@ export interface Photo {
   height?: number | null;
   sizeBytes?: number | null;
   analysisStatus?: 'pending' | 'processing' | 'done' | 'failed' | 'skipped';
+  // Editable desde la web.
+  title?: string | null;
+  comments?: PhotoComment[];
   aiAnalysis?: {
     healthScore: number;
     growthStage: string;

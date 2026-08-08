@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { apiGet } from '@/lib/api';
+import { PhotoModal } from '@/components/gallery/photo-modal';
 import type { Photo } from '@/types';
 import { formatDateTime, getHealthColor, cn } from '@/lib/utils';
 import {
@@ -12,10 +13,7 @@ import {
   CheckCircle,
   AlertTriangle,
   Sparkles,
-  X,
   ZoomIn,
-  ChevronLeft,
-  ChevronRight,
   Image as ImageIcon,
 } from 'lucide-react';
 
@@ -46,18 +44,24 @@ export default function GaleriaPage() {
   }, [cargar]);
 
   const activePhoto = selectedPhoto ? photos.find(p => p.id === selectedPhoto) : null;
-  const lightboxPhotoData = lightboxPhoto ? photos.find(p => p.id === lightboxPhoto) : null;
+  const lightboxIndex = lightboxPhoto ? photos.findIndex(p => p.id === lightboxPhoto) : -1;
+  const lightboxPhotoData = lightboxIndex >= 0 ? photos[lightboxIndex] : null;
 
   const navigateLightbox = (direction: 'prev' | 'next') => {
-    if (!lightboxPhoto) return;
-    const currentIndex = photos.findIndex(p => p.id === lightboxPhoto);
-    let newIndex: number;
-    if (direction === 'prev') {
-      newIndex = currentIndex === 0 ? photos.length - 1 : currentIndex - 1;
-    } else {
-      newIndex = currentIndex === photos.length - 1 ? 0 : currentIndex + 1;
-    }
-    setLightboxPhoto(photos[newIndex].id);
+    if (lightboxIndex < 0 || photos.length === 0) return;
+    const next =
+      direction === 'prev'
+        ? (lightboxIndex - 1 + photos.length) % photos.length
+        : (lightboxIndex + 1) % photos.length;
+    setLightboxPhoto(photos[next].id);
+  };
+
+  // Tras borrar: cerramos el modal y recargamos, porque la lista cambió de
+  // largo y el índice que teníamos ya no apunta a lo mismo.
+  const alBorrar = () => {
+    setLightboxPhoto(null);
+    setSelectedPhoto(null);
+    cargar();
   };
 
   return (
@@ -110,7 +114,10 @@ export default function GaleriaPage() {
                 {photos.map((photo) => (
                   <div
                     key={photo.id}
-                    onClick={() => setSelectedPhoto(photo.id)}
+                    onClick={() => {
+                      setSelectedPhoto(photo.id);
+                      setLightboxPhoto(photo.id);
+                    }}
                     className={cn(
                       'relative group cursor-pointer rounded-xl overflow-hidden aspect-square bg-gradient-to-br from-green-100 to-green-200 border-2 transition-all',
                       selectedPhoto === photo.id
@@ -153,7 +160,7 @@ export default function GaleriaPage() {
 
                     {/* Crop name */}
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                      <p className="text-white text-sm font-medium truncate">{photo.cropName ?? 'Sin cultivo asignado'}</p>
+                      <p className="text-white text-sm font-medium truncate">{photo.title ?? photo.cropName ?? 'Sin título'}</p>
                       <p className="text-white/70 text-xs">
                         {new Date(photo.capturedAt).toLocaleDateString('es-AR')}
                       </p>
@@ -283,61 +290,18 @@ export default function GaleriaPage() {
         </div>
       </div>
 
-      {/* Lightbox */}
       {lightboxPhotoData && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
-          onClick={() => setLightboxPhoto(null)}
-        >
-          <button
-            onClick={() => setLightboxPhoto(null)}
-            className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
-          >
-            <X className="h-6 w-6" />
-          </button>
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              navigateLightbox('prev');
-            }}
-            className="absolute left-4 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 transition-colors"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="max-w-4xl max-h-[80vh] rounded-2xl overflow-hidden bg-black flex items-center justify-center"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={lightboxPhotoData.url}
-              alt={lightboxPhotoData.cropName ?? 'Foto de la huerta'}
-              className="max-h-[80vh] w-auto object-contain"
-            />
-          </div>
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              navigateLightbox('next');
-            }}
-            className="absolute right-4 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 transition-colors"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
-
-          {/* Photo info */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-sm rounded-xl px-6 py-3 text-white">
-            <p className="font-medium">{lightboxPhotoData.cropName ?? 'Sin cultivo asignado'}</p>
-            <p className="text-sm text-white/70">
-              {formatDateTime(lightboxPhotoData.capturedAt)}
-              {lightboxPhotoData.aiAnalysis && ` • Salud: ${lightboxPhotoData.aiAnalysis.healthScore}%`}
-            </p>
-          </div>
-        </div>
+        <PhotoModal
+          photo={lightboxPhotoData}
+          index={lightboxIndex}
+          total={photos.length}
+          onClose={() => setLightboxPhoto(null)}
+          onNavigate={navigateLightbox}
+          onChanged={cargar}
+          onDeleted={alBorrar}
+        />
       )}
+
     </div>
   );
 }

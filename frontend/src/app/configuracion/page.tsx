@@ -2,6 +2,7 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { CalibrationPanel } from '@/components/settings/calibration-panel';
+import { CamerasPanel } from '@/components/settings/cameras-panel';
 import {
   Settings,
   Wifi,
@@ -89,6 +90,9 @@ export default function ConfiguracionPage() {
 
           {/* Calibración de sensores (pH / EC) */}
           <CalibrationPanel />
+
+          {/* Cámaras: pausa e intervalo de captura */}
+          <CamerasPanel />
 
           {/* Notifications settings */}
           <Card>

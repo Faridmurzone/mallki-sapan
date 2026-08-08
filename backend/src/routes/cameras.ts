@@ -1,5 +1,6 @@
 import { Router, raw } from 'express';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 
 import { prisma } from '../services/database.js';
 import { storage } from '../services/storage.js';
@@ -7,8 +8,11 @@ import { AppError } from '../middleware/error-handler.js';
 import { parseJpeg, InvalidJpegError } from '../utils/jpeg.js';
 import {
   MAX_IMAGE_BYTES,
+  MIN_CAPTURE_INTERVAL_SEC,
+  MAX_CAPTURE_INTERVAL_SEC,
   buildDedupeKey,
   buildStorageKey,
+  clampCaptureInterval,
   isValidCameraId,
   parseCapturedAt,
   sha256Hex,
@@ -43,6 +47,99 @@ router.get('/', async (_req, res) => {
       photoCount: camera._count.photos,
     }))
   );
+});
+
+const updateCameraSchema = z.object({
+  name: z.string().trim().max(80).nullable().optional(),
+  isActive: z.boolean().optional(),
+  captureIntervalSec: z
+    .number()
+    .int()
+    .min(MIN_CAPTURE_INTERVAL_SEC)
+    .max(MAX_CAPTURE_INTERVAL_SEC)
+    .optional(),
+  cropId: z.string().nullable().optional(),
+});
+
+/**
+ * GET /api/cameras/:cameraId/config - Config que el dispositivo consulta
+ *
+ * La cámara pega acá cada minuto, incluso estando en pausa: si sólo preguntara
+ * al subir una foto, una vez pausada no habría forma de reactivarla desde la
+ * web y habría que reiniciarla a mano.
+ *
+ * Respuesta chica a propósito, la parsea un ESP32 sin librería de JSON.
+ */
+router.get('/:cameraId/config', async (req, res) => {
+  const { cameraId } = req.params;
+
+  if (!isValidCameraId(cameraId)) {
+    throw new AppError(400, 'cameraId inválido');
+  }
+
+  const now = new Date();
+
+  // Con el alta automática activada, este endpoint también sirve para que una
+  // cámara recién flasheada aparezca en la web antes de su primera foto.
+  const camera = AUTO_REGISTER
+    ? await prisma.camera.upsert({
+        where: { id: cameraId },
+        update: { lastSeenAt: now },
+        create: { id: cameraId, lastSeenAt: now },
+      })
+    : await prisma.camera.findUnique({ where: { id: cameraId } });
+
+  if (!camera) {
+    throw new AppError(404, 'Cámara no registrada');
+  }
+
+  if (!AUTO_REGISTER) {
+    // El upsert ya lo hizo en la otra rama; acá hay que marcarlo aparte.
+    await prisma.camera.update({ where: { id: cameraId }, data: { lastSeenAt: now } });
+  }
+
+  res.json({
+    enabled: camera.isActive,
+    captureIntervalSec: camera.captureIntervalSec,
+  });
+});
+
+// PATCH /api/cameras/:cameraId - Editar la cámara desde la web
+router.patch('/:cameraId', async (req, res) => {
+  const { cameraId } = req.params;
+
+  if (!isValidCameraId(cameraId)) {
+    throw new AppError(400, 'cameraId inválido');
+  }
+
+  const data = updateCameraSchema.parse(req.body);
+
+  const camera = await prisma.camera.findUnique({ where: { id: cameraId } });
+  if (!camera) {
+    throw new AppError(404, 'Cámara no encontrada');
+  }
+
+  // Un cropId inexistente rompería con un error de FK poco legible.
+  if (data.cropId) {
+    const crop = await prisma.crop.findUnique({ where: { id: data.cropId } });
+    if (!crop) {
+      throw new AppError(404, 'Cultivo no encontrado');
+    }
+  }
+
+  const updated = await prisma.camera.update({
+    where: { id: cameraId },
+    data: {
+      ...data,
+      name: data.name === '' ? null : data.name,
+      ...(data.captureIntervalSec !== undefined && {
+        captureIntervalSec: clampCaptureInterval(data.captureIntervalSec),
+      }),
+    },
+    include: { crop: { select: { id: true, name: true } } },
+  });
+
+  res.json({ ...updated, cropName: updated.crop?.name ?? null });
 });
 
 /**
