@@ -177,7 +177,9 @@ def main() -> None:
     print(f"🧠 Mallki Sapan AI-engine → {config.BACKEND_URL} (cada {config.POLL_INTERVAL_SEC}s)")
     print(f"   Claude: {'activo (' + config.CLAUDE_MODEL + ')' if config.ANTHROPIC_API_KEY else 'fallback por reglas'}")
     if config.PHOTO_ANALYSIS_ENABLED and config.ANTHROPIC_API_KEY:
-        cada = config.PHOTO_ANALYSIS_INTERVAL_SEC
+        # max(1) para que un intervalo en 0 ("analizá siempre que puedas") no
+        # tire el motor al arrancar por una división por cero.
+        cada = max(config.PHOTO_ANALYSIS_INTERVAL_SEC, 1)
         print(f"   Fotos: una cada {cada}s (~{round(86400 / cada)} análisis por día)")
     while True:
         try:

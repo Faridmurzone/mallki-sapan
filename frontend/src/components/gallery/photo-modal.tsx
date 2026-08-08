@@ -267,9 +267,14 @@ export function PhotoModal({
             </p>
           )}
 
+          {/* Análisis y comentarios comparten un solo scroll: con dos áreas
+              scrolleables anidadas el análisis quedaba cortado a mitad de
+              renglón y no se notaba que seguía. */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto">
           {/* Análisis de IA */}
           {(analisis || estadoTexto) && (
-            <div className="max-h-64 flex-none overflow-y-auto border-b border-gray-100 p-4">
+            <div className="border-b border-gray-100 p-4">
               <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
                 <Sparkles className="h-4 w-4 text-purple-500" />
                 Análisis de IA
@@ -341,13 +346,12 @@ export function PhotoModal({
           )}
 
           {/* Comentarios */}
-          <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex items-center gap-2 px-4 pt-4 text-sm font-medium text-gray-700">
               <MessageSquare className="h-4 w-4" />
               Comentarios ({comentarios.length})
             </div>
 
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+            <div className="space-y-2 p-4">
               {comentarios.length === 0 && (
                 <p className="py-6 text-center text-sm text-gray-400">
                   Todavía no hay comentarios.
@@ -374,6 +378,7 @@ export function PhotoModal({
                   </p>
                 </div>
               ))}
+              </div>
             </div>
 
             <div className="border-t border-gray-100 p-3">
