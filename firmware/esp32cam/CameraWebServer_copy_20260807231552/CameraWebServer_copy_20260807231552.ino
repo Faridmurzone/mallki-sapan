@@ -19,7 +19,15 @@ const char *ssid = WIFI_SSID;
 const char *password = WIFI_PASSWORD;
 const char *cameraId = CAMERA_ID;
 
-const unsigned long photoIntervalMs = 60000;  // 1 minuto
+// Config por defecto. La real la manda el backend y se puede cambiar desde la
+// web sin volver a flashear; estos valores son sólo el arranque y el respaldo
+// para cuando el servidor no contesta.
+const unsigned long defaultPhotoIntervalMs = 60000;  // 1 minuto
+const unsigned long configPollIntervalMs = 60000;    // cada cuánto pregunta
+
+// Piso de seguridad: si alguien mandara 0 o un valor absurdo, no queremos que
+// la cámara sature la red sacando fotos en bucle.
+const unsigned long minPhotoIntervalMs = 10000;
 
 // Reintentos: sólo ante timeout o 5xx. Un 4xx significa que el pedido está
 // mal formado y reintentarlo igual no lo va a arreglar.
@@ -32,8 +40,14 @@ void setupLedFlash();
 void sendPhoto();
 bool postJpeg(camera_fb_t *fb, const char *capturedAt, int &statusCode);
 bool isoTimestamp(char *out, size_t outSize);
+void fetchConfig();
 
 unsigned long lastPhotoSentAt = 0;
+unsigned long lastConfigFetchAt = 0;
+
+// Estado que viene del backend.
+unsigned long photoIntervalMs = defaultPhotoIntervalMs;
+bool captureEnabled = true;
 
 void setup() {
   Serial.begin(115200);
@@ -175,19 +189,105 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
 
-  // Opcional: mandar una foto inmediatamente al arrancar
-  sendPhoto();
+  // Traemos la config antes de la primera foto, así respeta desde el arranque
+  // lo que esté configurado en la web.
+  fetchConfig();
+  lastConfigFetchAt = millis();
+
+  if (captureEnabled) {
+    sendPhoto();
+  }
 
   lastPhotoSentAt = millis();
 }
 
 void loop() {
-  if (millis() - lastPhotoSentAt >= photoIntervalMs) {
+  // El poll de config corre siempre, también con la captura pausada: si sólo
+  // preguntara al sacar una foto, una vez pausada no habría forma de
+  // reactivarla desde la web y habría que reiniciarla a mano.
+  if (millis() - lastConfigFetchAt >= configPollIntervalMs) {
+    fetchConfig();
+    lastConfigFetchAt = millis();
+  }
+
+  if (captureEnabled && millis() - lastPhotoSentAt >= photoIntervalMs) {
     sendPhoto();
     lastPhotoSentAt = millis();
   }
 
   delay(100);
+}
+
+/**
+ * Trae {"enabled":true,"captureIntervalSec":60} del backend.
+ *
+ * Parseo a mano en vez de sumar ArduinoJson: son dos campos de forma conocida
+ * y el ESP32-CAM ya anda justo de memoria con el framebuffer de la cámara.
+ *
+ * Falla abierta: si el backend no responde, se mantiene la última config
+ * conocida. Un corte de red no debería dejar la huerta sin fotos.
+ */
+void fetchConfig() {
+  if (WiFi.status() != WL_CONNECTED) {
+    return;
+  }
+
+  WiFiClient client;
+  HTTPClient http;
+
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/cameras/%s/config", BACKEND_BASE_URL, cameraId);
+
+  if (!http.begin(client, url)) {
+    return;
+  }
+
+  http.setTimeout(httpTimeoutMs);
+  int status = http.GET();
+
+  if (status != 200) {
+    Serial.printf("Config: HTTP %d, sigo con la anterior\n", status);
+    http.end();
+    return;
+  }
+
+  String body = http.getString();
+  http.end();
+
+  bool nuevoEnabled = captureEnabled;
+  unsigned long nuevoIntervalo = photoIntervalMs;
+
+  int posEnabled = body.indexOf("\"enabled\"");
+  if (posEnabled >= 0) {
+    int colon = body.indexOf(':', posEnabled);
+    if (colon >= 0) {
+      // Saltamos los espacios: sin esto, un `"enabled" : true` con espacios
+      // se leería como false y la cámara se pausaría sola.
+      int v = colon + 1;
+      while (v < (int)body.length() && isspace((unsigned char)body[v])) v++;
+      nuevoEnabled = body.startsWith("true", v);
+    }
+  }
+
+  int posIntervalo = body.indexOf("\"captureIntervalSec\"");
+  if (posIntervalo >= 0) {
+    int colon = body.indexOf(':', posIntervalo);
+    if (colon >= 0) {
+      // toInt() ya tolera los espacios de adelante.
+      long segundos = body.substring(colon + 1).toInt();
+      if (segundos > 0) {
+        nuevoIntervalo = max((unsigned long)segundos * 1000UL, minPhotoIntervalMs);
+      }
+    }
+  }
+
+  if (nuevoEnabled != captureEnabled || nuevoIntervalo != photoIntervalMs) {
+    Serial.printf("Config nueva: captura=%s cada %lus\n",
+                  nuevoEnabled ? "ON" : "PAUSADA", nuevoIntervalo / 1000);
+  }
+
+  captureEnabled = nuevoEnabled;
+  photoIntervalMs = nuevoIntervalo;
 }
 
 // Fecha ISO-8601 en UTC, como la espera el backend: 2026-08-07T23:15:00Z

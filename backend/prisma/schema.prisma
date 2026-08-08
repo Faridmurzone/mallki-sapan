@@ -14,11 +14,11 @@ datasource db {
 enum SensorType {
   humidity_soil
   humidity_air
-  temperature       // usar tambien para temperatura del agua (hidroponia)
+  temperature // usar tambien para temperatura del agua (hidroponia)
   light
   ph
-  water_level       // nivel del tanque en % (0-100)
-  ec                // conductividad electrica / nutrientes en mS/cm
+  water_level // nivel del tanque en % (0-100)
+  ec // conductividad electrica / nutrientes en mS/cm
 }
 
 enum SensorStatus {
@@ -62,7 +62,7 @@ model SensorReading {
 model Calibration {
   id        String   @id @default(cuid())
   key       String   @unique // "ph" | "ec"
-  params    Json                // { voltageAt7, voltageAt4 } o { kValue }
+  params    Json // { voltageAt7, voltageAt4 } o { kValue }
   note      String?
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
@@ -173,14 +173,14 @@ enum AnalysisStatus {
 }
 
 model Photo {
-  id           String      @id @default(cuid())
+  id           String   @id @default(cuid())
   url          String
   thumbnailUrl String?
   // Opcional desde que existe la ingesta por cámara: una cámara puede estar
   // apuntando a la huerta sin estar asociada a un cultivo concreto.
   cropId       String?
-  capturedAt   DateTime    @default(now())
-  createdAt    DateTime    @default(now())
+  capturedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   source PhotoSource @default(manual)
 
@@ -198,9 +198,13 @@ model Photo {
 
   analysisStatus AnalysisStatus @default(pending)
 
+  // Título que se le pone desde la web. Las fotos de cámara llegan sin uno.
+  title String?
+
   crop     Crop?          @relation(fields: [cropId], references: [id], onDelete: SetNull)
   camera   Camera?        @relation(fields: [cameraId], references: [id], onDelete: SetNull)
   analysis PhotoAnalysis?
+  comments PhotoComment[]
 
   @@index([cameraId, capturedAt])
   @@index([analysisStatus])
@@ -208,18 +212,38 @@ model Photo {
 }
 
 model Camera {
-  id        String   @id // identificador del dispositivo, ej. "esp32-cam-01"
-  name      String?
-  cropId    String?
-  isActive  Boolean  @default(true)
-  lastSeenAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String    @id // identificador del dispositivo, ej. "esp32-cam-01"
+  name               String?
+  cropId             String?
+  // El dispositivo lo consulta en GET /api/cameras/:id/config. En false deja
+  // de sacar fotos pero sigue preguntando, así se lo puede despausar.
+  isActive           Boolean   @default(true)
+  // Cada cuánto saca una foto. Se edita desde la web, sin reflashear.
+  captureIntervalSec Int       @default(60)
+  lastSeenAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   crop   Crop?   @relation(fields: [cropId], references: [id], onDelete: SetNull)
   photos Photo[]
 
   @@map("cameras")
+}
+
+// Notas que se escriben desde la web sobre una foto: "acá se ve la mancha",
+// "el brote nuevo salió". Todavía no hay usuarios, así que el autor es texto.
+model PhotoComment {
+  id        String   @id @default(cuid())
+  photoId   String
+  body      String
+  author    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@index([photoId, createdAt])
+  @@map("photo_comments")
 }
 
 model PhotoAnalysis {
@@ -258,13 +282,13 @@ model IrrigationZone {
 }
 
 model IrrigationEvent {
-  id          String             @id @default(cuid())
+  id          String            @id @default(cuid())
   trigger     IrrigationTrigger
   duration    Int // minutos
   waterVolume Float // litros
-  startedAt   DateTime           @default(now())
+  startedAt   DateTime          @default(now())
   endedAt     DateTime?
-  createdAt   DateTime           @default(now())
+  createdAt   DateTime          @default(now())
 
   zones IrrigationEventZone[]
 
@@ -273,9 +297,9 @@ model IrrigationEvent {
 }
 
 model IrrigationEventZone {
-  id        String @id @default(cuid())
-  eventId   String
-  zoneId    String
+  id      String @id @default(cuid())
+  eventId String
+  zoneId  String
 
   event IrrigationEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
   zone  IrrigationZone  @relation(fields: [zoneId], references: [id], onDelete: Cascade)

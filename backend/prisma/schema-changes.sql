@@ -1,55 +1,24 @@
--- CreateEnum
-CREATE TYPE "PhotoSource" AS ENUM ('manual', 'camera');
-
--- CreateEnum
-CREATE TYPE "AnalysisStatus" AS ENUM ('pending', 'processing', 'done', 'failed', 'skipped');
-
--- DropForeignKey
-ALTER TABLE "photos" DROP CONSTRAINT "photos_cropId_fkey";
+-- AlterTable
+ALTER TABLE "photos" ADD COLUMN     "title" TEXT;
 
 -- AlterTable
-ALTER TABLE "photos" ADD COLUMN     "analysisStatus" "AnalysisStatus" NOT NULL DEFAULT 'pending',
-ADD COLUMN     "cameraId" TEXT,
-ADD COLUMN     "contentHash" TEXT,
-ADD COLUMN     "dedupeKey" TEXT,
-ADD COLUMN     "height" INTEGER,
-ADD COLUMN     "sizeBytes" INTEGER,
-ADD COLUMN     "source" "PhotoSource" NOT NULL DEFAULT 'manual',
-ADD COLUMN     "storageKey" TEXT,
-ADD COLUMN     "width" INTEGER,
-ALTER COLUMN "cropId" DROP NOT NULL;
+ALTER TABLE "cameras" ADD COLUMN     "captureIntervalSec" INTEGER NOT NULL DEFAULT 60;
 
 -- CreateTable
-CREATE TABLE "cameras" (
+CREATE TABLE "photo_comments" (
     "id" TEXT NOT NULL,
-    "name" TEXT,
-    "cropId" TEXT,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "lastSeenAt" TIMESTAMP(3),
+    "photoId" TEXT NOT NULL,
+    "body" TEXT NOT NULL,
+    "author" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "cameras_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "photo_comments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "photos_storageKey_key" ON "photos"("storageKey");
-
--- CreateIndex
-CREATE UNIQUE INDEX "photos_dedupeKey_key" ON "photos"("dedupeKey");
-
--- CreateIndex
-CREATE INDEX "photos_cameraId_capturedAt_idx" ON "photos"("cameraId", "capturedAt");
-
--- CreateIndex
-CREATE INDEX "photos_analysisStatus_idx" ON "photos"("analysisStatus");
+CREATE INDEX "photo_comments_photoId_createdAt_idx" ON "photo_comments"("photoId", "createdAt");
 
 -- AddForeignKey
-ALTER TABLE "photos" ADD CONSTRAINT "photos_cropId_fkey" FOREIGN KEY ("cropId") REFERENCES "crops"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "photos" ADD CONSTRAINT "photos_cameraId_fkey" FOREIGN KEY ("cameraId") REFERENCES "cameras"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "cameras" ADD CONSTRAINT "cameras_cropId_fkey" FOREIGN KEY ("cropId") REFERENCES "crops"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "photo_comments" ADD CONSTRAINT "photo_comments_photoId_fkey" FOREIGN KEY ("photoId") REFERENCES "photos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

@@ -14,6 +14,21 @@ export function isValidCameraId(value: string): boolean {
 /** Tamaño máximo aceptado por imagen. */
 export const MAX_IMAGE_BYTES = Number(process.env.MAX_IMAGE_BYTES || 2 * 1024 * 1024);
 
+/**
+ * Límites del intervalo de captura, en segundos.
+ *
+ * El mínimo evita que alguien ponga 0 y la cámara sature la red y el disco;
+ * el máximo (24 h) evita valores que en la práctica equivalen a apagarla, para
+ * eso está el switch de pausa.
+ */
+export const MIN_CAPTURE_INTERVAL_SEC = 10;
+export const MAX_CAPTURE_INTERVAL_SEC = 86400;
+
+export function clampCaptureInterval(value: number): number {
+  if (!Number.isFinite(value)) return 60;
+  return Math.min(MAX_CAPTURE_INTERVAL_SEC, Math.max(MIN_CAPTURE_INTERVAL_SEC, Math.round(value)));
+}
+
 export function sha256Hex(buf: Buffer): string {
   return createHash('sha256').update(buf).digest('hex');
 }
