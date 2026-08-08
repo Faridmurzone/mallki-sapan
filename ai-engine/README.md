@@ -39,6 +39,15 @@ claim (backend elige la más nueva y descarta las viejas)
   → POST /api/photos/:id/analysis   (→ done, y una alerta por cada problema)
 ```
 
+Cada problema detectado viene con una **categoría** de una lista cerrada
+(`clorosis`, `manchas`, `plaga`, `marchitez`, `crecimiento_lento`, `quemadura`,
+`algas`, `raices`, `otro`). El texto lo escribe el modelo y cambia de una foto a
+otra, así que no sirve para reconocer que es el mismo problema de antes; la
+categoría sí. Con eso el backend **deduplica**: un problema que persiste suma
+ocurrencias sobre la misma alerta en vez de generar una nueva cada hora. Si
+empeora, la alerta escala de severidad. La lista tiene que coincidir con
+`CATEGORIAS_PROBLEMA` en `backend/src/services/alerts.ts`.
+
 Si algo sale mal la foto no queda colgada:
 
 | Situación | Estado final |

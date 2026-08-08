@@ -26,3 +26,8 @@ ALTER TABLE "photo_comments" ADD CONSTRAINT "photo_comments_photoId_fkey" FOREIG
 -- AlterTable: análisis de fotos con IA
 ALTER TABLE "photos" ADD COLUMN     "analysisStartedAt" TIMESTAMP(3);
 ALTER TABLE "photos" ADD COLUMN     "analysisError" TEXT;
+
+-- AlterTable: deduplicación de alertas repetidas
+ALTER TABLE "alerts" ADD COLUMN     "dedupeKey" TEXT;
+ALTER TABLE "alerts" ADD COLUMN     "occurrences" INTEGER NOT NULL DEFAULT 1;
+CREATE INDEX "alerts_dedupeKey_createdAt_idx" ON "alerts"("dedupeKey", "createdAt");

@@ -149,9 +149,18 @@ model Alert {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
+  // Identifica "el mismo problema" entre análisis sucesivos. Sin esto, un
+  // problema que persiste genera una alerta nueva cada vez que se lo detecta.
+  // Ver upsertAlert() en src/services/alerts.ts.
+  dedupeKey   String?
+  // Cuántas veces se detectó. Arranca en 1, no en 0: la alerta existe porque
+  // el problema se detectó al menos una vez.
+  occurrences Int    @default(1)
+
   crop Crop? @relation(fields: [cropId], references: [id], onDelete: SetNull)
 
   @@index([isRead, severity])
+  @@index([dedupeKey, createdAt])
   @@map("alerts")
 }
 

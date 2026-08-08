@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../services/database.js';
 import { storage } from '../services/storage.js';
 import { claimNextPhotoForAnalysis, DEFAULT_STALE_AFTER_SEC } from '../services/photo-analysis.js';
+import { buildIssueDedupeKey, normalizeCategoria, upsertAlert } from '../services/alerts.js';
 import { AppError } from '../middleware/error-handler.js';
 
 const router = Router();
@@ -25,11 +26,24 @@ const createCommentSchema = z.object({
   author: z.string().trim().max(80).optional(),
 });
 
+// Un problema puede venir como objeto {categoria, detalle} o como string
+// suelto. Lo segundo es el formato viejo: se acepta y cae en "otro", que
+// deduplica peor pero no rompe a nadie.
+const issueSchema = z.preprocess(
+  valor => (typeof valor === 'string' ? { categoria: 'otro', detalle: valor } : valor),
+  z.object({
+    // Sin z.enum a propósito: si la lista del ai-engine se adelanta a la del
+    // backend, queremos "otro" y no un 400 que marque la foto como fallida.
+    categoria: z.string().trim().max(40).optional(),
+    detalle: z.string().trim().min(1).max(500),
+  })
+);
+
 const createAnalysisSchema = z.object({
   // Entero a propósito: la columna es Int y un 87.5 rompería el insert.
   healthScore: z.number().int().min(0).max(100),
   growthStage: z.string().trim().min(1).max(80),
-  issues: z.array(z.string()).default([]),
+  issues: z.array(issueSchema).default([]),
   recommendations: z.array(z.string()).default([]),
 });
 
@@ -249,13 +263,17 @@ router.post('/:id/analysis', async (req, res) => {
     throw new AppError(404, 'Foto no encontrada');
   }
 
+  // En PhotoAnalysis se guarda sólo el detalle: la categoría existe para
+  // deduplicar alertas, no es algo que el usuario quiera leer.
+  const datosAnalisis = { ...data, issues: data.issues.map(i => i.detalle) };
+
   // Si ya tiene análisis, actualizarlo
   let analysis;
   if (photo.analysis) {
     analysis = await prisma.photoAnalysis.update({
       where: { photoId: req.params.id },
       data: {
-        ...data,
+        ...datosAnalisis,
         analyzedAt: new Date(),
       },
     });
@@ -263,7 +281,7 @@ router.post('/:id/analysis', async (req, res) => {
     analysis = await prisma.photoAnalysis.create({
       data: {
         photoId: req.params.id,
-        ...data,
+        ...datosAnalisis,
       },
     });
   }
@@ -279,15 +297,22 @@ router.post('/:id/analysis', async (req, res) => {
       ?? (photoWithCrop?.cameraId ? `la cámara ${photoWithCrop.cameraId}` : 'la huerta');
 
     for (const issue of data.issues) {
-      await prisma.alert.create({
-        data: {
-          type: 'growth',
-          severity: data.healthScore < 50 ? 'high' : data.healthScore < 70 ? 'medium' : 'low',
-          title: `Problema detectado en ${dondeSeDetecto}`,
-          message: issue,
+      const categoria = normalizeCategoria(issue.categoria);
+
+      // upsert y no create: el análisis corre cada hora y un problema real no
+      // se arregla solo, así que crear una alerta por detección llenaría la
+      // pantalla con la misma noticia repetida.
+      await upsertAlert({
+        dedupeKey: buildIssueDedupeKey(categoria, {
           cropId: photoWithCrop?.cropId,
-          aiRecommendation: data.recommendations.join('. '),
-        },
+          cameraId: photoWithCrop?.cameraId,
+        }),
+        type: 'growth',
+        severity: data.healthScore < 50 ? 'high' : data.healthScore < 70 ? 'medium' : 'low',
+        title: `Problema detectado en ${dondeSeDetecto}`,
+        message: issue.detalle,
+        cropId: photoWithCrop?.cropId,
+        aiRecommendation: data.recommendations.join('. ') || null,
       });
     }
   }
